@@ -2,7 +2,8 @@ use super::*;
 use crate::mock::*;
 use codec::Encode;
 use cord_utilities::mock::{mock_origin::DoubleOrigin, SubjectId};
-use frame_support::{assert_err, assert_ok, BoundedVec};
+use frame_support::{assert_err, assert_ok, assert_noop, BoundedVec};
+use crate::{Error, types::{ AssetIssuanceEntry}};
 use frame_system::RawOrigin;
 use pallet_chain_space::{SpaceCodeOf, SpaceIdOf};
 use sp_runtime::{traits::Hash, AccountId32};
@@ -263,45 +264,71 @@ fn asset_issue_should_succeed_until_limit() {
     let digest = <Test as frame_system::Config>::Hashing::hash(&[&entry.encode()[..]].concat()[..]);
 
     new_test_ext().execute_with(|| {
-        
+        let space_id_clone = space_id.clone();
+        let _authorization_id_clone = authorization_id.clone();
+
         assert_ok!(Space::create(
             DoubleOrigin(author.clone(), creator.clone()).into(),
             space_digest,
         ));
 
-       
-        assert_ok!(Space::approve(RawOrigin::Root.into(), space_id, capacity));
+        assert_ok!(Space::approve(RawOrigin::Root.into(), space_id_clone, capacity));
 
-        
         assert_ok!(Asset::create(
             DoubleOrigin(author.clone(), creator.clone()).into(),
             entry.clone(),
             digest,
-            authorization_id
+            authorization_id.clone()
         ));
 
-        
         for i in 1..=25 {
-            let recipient = SubjectId(AccountId32::new([i as u8; 32])); 
+            let _recipient = SubjectId(AccountId32::new([i as u8; 32])); 
+            let asset_id = space_id.clone(); 
+            let asset_owner = creator.clone(); 
+            let asset_issuance_qty = asset_qty;
+
+            let issuance_entry = AssetIssuanceEntry {
+                asset_id,
+                asset_owner,
+                asset_issuance_qty: Some(asset_issuance_qty),
+            };
+
+            let issuance_digest = <Test as frame_system::Config>::Hashing::hash(&issuance_entry.encode()[..]);
+
+          
             assert_ok!(Asset::issue(
                 DoubleOrigin(author.clone(), creator.clone()).into(),
-                recipient.clone(),
-                asset_qty
+                issuance_entry.clone(),
+                issuance_digest,
+                authorization_id.clone() 
             ));
         }
 
-        
-        let exceeding_recipient = SubjectId(AccountId32::new([26u8; 32]));
+        let _exceeding_recipient = SubjectId(AccountId32::new([26u8; 32]));
+        let exceeding_asset_id = space_id.clone();
+        let exceeding_asset_owner = creator.clone(); 
+        let exceeding_asset_issuance_qty = asset_qty;
+
+        let exceeding_entry = AssetIssuanceEntry {
+            asset_id: exceeding_asset_id,
+            asset_owner: exceeding_asset_owner,
+            asset_issuance_qty: Some(exceeding_asset_issuance_qty),
+        };
+
+        let exceeding_digest = <Test as frame_system::Config>::Hashing::hash(&exceeding_entry.encode()[..]);
+
         assert_noop!(
             Asset::issue(
                 DoubleOrigin(author.clone(), creator.clone()).into(),
-                exceeding_recipient,
-                asset_qty
+                exceeding_entry,
+                exceeding_digest,
+                authorization_id.clone()
             ),
             Error::<Test>::DistributionLimitExceeded
         );
     });
 }
+
 
 
 #[test]
