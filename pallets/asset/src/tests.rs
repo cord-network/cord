@@ -2840,68 +2840,87 @@ fn asset_vc_status_change_with_wrong_asset_id_should_fail() {
 	});
 }
 
-/// Test case for validating that asset creation fails when provided with an invalid asset value or out of space.
-fn asset_create_should_fail_invalid_asset_value() {
-    // Define the creator and author identities, along with the capacity for the "space"
-    let creator = DID_00;
-    let author = ACCOUNT_00;
-    let capacity = 5u64;
+/// Test case for validating that asset creation fails when provided with invalid asset values.
+/// It covers both cases where the failure may result from an invalid `asset_value` or `asset_qty`.
+fn asset_create_should_fail_for_invalid_asset_value() {
+	// Define the creator and author identities, along with the capacity for the "space"
+	let creator = DID_00;
+	let author = ACCOUNT_00;
+	let capacity = 5u64;
 
-    // Generate a unique space identifier by hashing raw space data
-    let raw_space = [2u8; 256].to_vec();
-    let space_digest = <Test as frame_system::Config>::Hashing::hash(&raw_space.encode()[..]);
-    let space_id_digest = <Test as frame_system::Config>::Hashing::hash(
-        &[&space_digest.encode()[..], &creator.encode()[..]].concat()[..],
-    );
-    let space_id: SpaceIdOf = generate_space_id::<Test>(&space_id_digest);
+	// Generate a unique space identifier by hashing raw space data
+	let raw_space = [2u8; 256].to_vec();
+	let space_digest = <Test as frame_system::Config>::Hashing::hash(&raw_space.encode()[..]);
+	let space_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&space_digest.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let space_id: SpaceIdOf = generate_space_id::<Test>(&space_id_digest);
 
-    // Generate an authorization ID based on the space and creator identifiers
-    let auth_digest = <Test as frame_system::Config>::Hashing::hash(
-        &[&space_id.encode()[..], &creator.encode()[..]].concat()[..],
-    );
-    let authorization_id: Ss58Identifier = generate_authorization_id::<Test>(&auth_digest);
+	// Generate an authorization ID based on the space and creator identifiers
+	let auth_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&space_id.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let authorization_id: Ss58Identifier = generate_authorization_id::<Test>(&auth_digest);
 
-    // Define the asset input with invalid parameters (e.g., negative asset value)
-    let asset_desc = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
-    let asset_tag = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
-    let asset_meta = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
-    let asset_qty = 10;
-    let asset_value = -10; // Invalid asset value to trigger error
-    let asset_type = AssetTypeOf::MF;
+	// Common asset fields
+	let asset_desc = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
+	let asset_tag = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
+	let asset_meta = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
+	let asset_type = AssetTypeOf::MF;
 
-    // Assemble the entry object with invalid asset value
-    let entry = AssetInputEntryOf::<Test> {
-        asset_desc,
-        asset_qty,
-        asset_type,
-        asset_value,
-        asset_tag,
-        asset_meta,
-    };
+	// Run the test scenario within a test environment
+	new_test_ext().execute_with(|| {
+		// Step 1: Successfully create and approve a space
+		assert_ok!(Space::create(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			space_digest,
+		));
+		assert_ok!(Space::approve(RawOrigin::Root.into(), space_id, capacity));
 
-    // Generate a unique digest for the asset entry to ensure transaction uniqueness
-    let digest = <Test as frame_system::Config>::Hashing::hash(&[&entry.encode()[..]].concat()[..]);
+		// Case 1: Attempt to create an asset with an invalid asset value
+		let invalid_value_entry = AssetInputEntryOf::<Test> {
+			asset_desc: asset_desc.clone(),
+			asset_qty: 10, // Valid quantity
+			asset_type,
+			asset_value: -10, // Invalid asset value
+			asset_tag: asset_tag.clone(),
+			asset_meta: asset_meta.clone(),
+		};
+		let digest = <Test as frame_system::Config>::Hashing::hash(
+			&[&invalid_value_entry.encode()[..]].concat()[..],
+		);
 
-    // Run the test scenario within a test environment
-    new_test_ext().execute_with(|| {
-        // Step 1: Successfully create a space with the specified author and creator
-        assert_ok!(Space::create(
-            DoubleOrigin(author.clone(), creator.clone()).into(),
-            space_digest,
-        ));
+		assert_err!(
+			Asset::create(
+				DoubleOrigin(author.clone(), creator.clone()).into(),
+				invalid_value_entry,
+				digest,
+				authorization_id,
+			),
+			Error::<Test>::InvalidAssetValue // Expecting error due to invalid asset value
+		);
 
-        // Step 2: Approve the created space with a defined capacity
-        assert_ok!(Space::approve(RawOrigin::Root.into(), space_id, capacity));
+		// Case 2: Attempt to create an asset with an invalid asset quantity
+		let invalid_qty_entry = AssetInputEntryOf::<Test> {
+			asset_desc,
+			asset_qty: -5, // Invalid quantity
+			asset_type,
+			asset_value: 10, // Valid asset value
+			asset_tag,
+			asset_meta,
+		};
+		let digest = <Test as frame_system::Config>::Hashing::hash(
+			&[&invalid_qty_entry.encode()[..]].concat()[..],
+		);
 
-        // Step 3: Attempt to create an asset with an invalid asset value and expect an error
-        assert_err!(
-            Asset::create(
-                DoubleOrigin(author.clone(), creator.clone()).into(),
-                entry,
-                digest,
-                authorization_id,
-            ),
-            Error::<Test>::InvalidAssetValue // Expect this specific error due to the invalid asset value
-        );
-    });
+		assert_err!(
+			Asset::create(
+				DoubleOrigin(author.clone(), creator.clone()).into(),
+				invalid_qty_entry,
+				digest,
+				authorization_id,
+			),
+			Error::<Test>::InvalidAssetValue // Expecting error due to invalid asset quantity
+		);
+	});
 }
