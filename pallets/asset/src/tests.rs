@@ -1,3 +1,5 @@
+use core::{borrow::Borrow, u32};
+
 use super::*;
 use crate::mock::*;
 use codec::Encode;
@@ -2842,6 +2844,7 @@ fn asset_vc_status_change_with_wrong_asset_id_should_fail() {
 
 /// Test case for validating that asset creation fails when provided with invalid asset values.
 /// It covers both cases where the failure may result from an invalid `asset_value` or `asset_qty`.
+#[test]
 fn asset_create_should_fail_for_invalid_asset_value() {
 	// Define the creator and author identities, along with the capacity for the "space"
 	let creator = DID_00;
@@ -2881,8 +2884,8 @@ fn asset_create_should_fail_for_invalid_asset_value() {
 		let invalid_value_entry = AssetInputEntryOf::<Test> {
 			asset_desc: asset_desc.clone(),
 			asset_qty: 10, // Valid quantity
-			asset_type,
-			asset_value: -10, // Invalid asset value
+			asset_type: asset_type.clone(),
+			asset_value: u32::MAX+1, // Invalid asset value(u32 overflow)
 			asset_tag: asset_tag.clone(),
 			asset_meta: asset_meta.clone(),
 		};
@@ -2895,7 +2898,7 @@ fn asset_create_should_fail_for_invalid_asset_value() {
 				DoubleOrigin(author.clone(), creator.clone()).into(),
 				invalid_value_entry,
 				digest,
-				authorization_id,
+				authorization_id.clone(),
 			),
 			Error::<Test>::InvalidAssetValue // Expecting error due to invalid asset value
 		);
@@ -2903,7 +2906,7 @@ fn asset_create_should_fail_for_invalid_asset_value() {
 		// Case 2: Attempt to create an asset with an invalid asset quantity
 		let invalid_qty_entry = AssetInputEntryOf::<Test> {
 			asset_desc,
-			asset_qty: -5, // Invalid quantity
+			asset_qty: u64::MAX+1, // Invalid quantity
 			asset_type,
 			asset_value: 10, // Valid asset value
 			asset_tag,
