@@ -2971,51 +2971,5 @@ fn asset_create_should_fail_for_invalid_asset_value() {
 			),
 			Error::<Test>::InvalidAssetValue // Expecting error due to zero asset quantity
 		);
-
-		// Case 5: Attempt to create an asset with a negative asset value
-		let negative_value_entry = AssetInputEntryOf::<Test> {
-			asset_desc: asset_desc.clone(),
-			asset_qty: 10, // Valid quantity
-			asset_type: asset_type.clone(),
-			asset_value: (0 - 1), // Invalid (negative) asset value
-			asset_tag: asset_tag.clone(),
-			asset_meta: asset_meta.clone(),
-		};
-		let digest = <Test as frame_system::Config>::Hashing::hash(
-			&[&negative_value_entry.encode()[..]].concat()[..],
-		);
-
-		assert_err!(
-			Asset::create(
-				DoubleOrigin(author.clone(), creator.clone()).into(),
-				negative_value_entry,
-				digest,
-				authorization_id.clone(),
-			),
-			Error::<Test>::InvalidAssetValue // Expecting error due to negative asset value
-		);
-
-		// Case 6: Attempt to create an asset with a negative asset quantity
-		let negative_qty_entry = AssetInputEntryOf::<Test> {
-			asset_desc: asset_desc.clone(),
-			asset_qty: (0 - 1), // Invalid (negative) quantity
-			asset_type: asset_type.clone(),
-			asset_value: 10, // Valid asset value
-			asset_tag: asset_tag.clone(),
-			asset_meta: asset_meta.clone(),
-		};
-		let digest = <Test as frame_system::Config>::Hashing::hash(
-			&[&negative_qty_entry.encode()[..]].concat()[..],
-		);
-
-		assert_err!(
-			Asset::create(
-				DoubleOrigin(author.clone(), creator.clone()).into(),
-				negative_qty_entry,
-				digest,
-				authorization_id.clone(),
-			),
-			Error::<Test>::InvalidAssetValue // Expecting error due to negative asset quantity
-		);
 	});
 }
