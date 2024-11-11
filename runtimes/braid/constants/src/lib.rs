@@ -25,13 +25,14 @@ pub mod weights;
 pub mod currency {
 	use cord_primitives::Balance;
 
-	/// The existential deposit.
-	pub const EXISTENTIAL_DEPOSIT: Balance = 100 * MILLI_UNITS;
 	pub const UNITS: Balance = 1_000_000_000_000; // 10^12 precision
 
 	pub const MILLI_UNITS: Balance = UNITS / 1_000; // 10^9 precision
 	pub const MICRO_UNITS: Balance = UNITS / 1_000_000; // 10^6 precision
 	pub const NANO_UNITS: Balance = UNITS / 1_000_000_000; // 10^3 precision
+
+	/// The existential deposit.
+	pub const EXISTENTIAL_DEPOSIT: Balance = 100 * MILLI_UNITS;
 
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
 		items as Balance * 100 * UNITS + (bytes as Balance) * 100 * MILLI_UNITS

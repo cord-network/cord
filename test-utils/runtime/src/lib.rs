@@ -368,7 +368,8 @@ pub mod currency {
 }
 
 parameter_types! {
-	pub const ExistentialDeposit: Balance = currency::UNITS;
+	pub const ExistentialDeposit: Balance = 100 * currency::MILLI_UNITS;
+
 	// For weight estimation, we assume that the most locks on an individual account will be 50.
 	// This number may need to be adjusted in the future if this assumption no longer holds true.
 	pub const MaxLocks: u32 = 50;
