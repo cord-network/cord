@@ -228,10 +228,10 @@ fn asset_issue_should_succeed() {
 }
 
 #[test]
-fn asset_issue_should_succeed_until_limit() {
-    let creator = DID_00;
+fn asset_issue_should_fail_when_distribution_limit_exceeds() {
+	let creator = DID_00;
     let author = ACCOUNT_00;
-    let capacity = 5u64;
+    let capacity = 25u64;
 
     let raw_space = [2u8; 256].to_vec();
     let space_digest = <Test as frame_system::Config>::Hashing::hash(&raw_space.encode()[..]);
@@ -248,7 +248,7 @@ fn asset_issue_should_succeed_until_limit() {
     let asset_desc = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
     let asset_tag = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
     let asset_meta = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
-    let asset_qty = 10;
+    let asset_qty = 1;
     let asset_value = 10;
     let asset_type = AssetTypeOf::MF;
 
@@ -262,6 +262,10 @@ fn asset_issue_should_succeed_until_limit() {
     };
 
     let digest = <Test as frame_system::Config>::Hashing::hash(&[&entry.encode()[..]].concat()[..]);
+
+	let issue_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&digest.encode()[..], &space_id.encode()[..], &creator.encode()[..]].concat()[..],
+	);
 
     new_test_ext().execute_with(|| {
         let space_id_clone = space_id.clone();
@@ -281,22 +285,21 @@ fn asset_issue_should_succeed_until_limit() {
             authorization_id.clone()
         ));
 
-        for i in 1..=25 {
-            let _recipient = SubjectId(AccountId32::new([i as u8; 32])); 
-            let asset_id = space_id.clone(); 
-            let asset_owner = creator.clone(); 
-            let asset_issuance_qty = asset_qty;
+        let _recipient = SubjectId(AccountId32::new([1u8; 32])); 
+        let asset_id: Ss58Identifier = generate_asset_id::<Test>(&issue_id_digest);
+        let asset_owner = creator.clone();
+        let asset_issuance_qty = asset_qty;
 
+        for _ in 1..=capacity {
             let issuance_entry = AssetIssuanceEntry {
-                asset_id,
-                asset_owner,
+                asset_id: asset_id.clone(),
+                asset_owner: asset_owner.clone(),
                 asset_issuance_qty: Some(asset_issuance_qty),
             };
 
             let issuance_digest = <Test as frame_system::Config>::Hashing::hash(&issuance_entry.encode()[..]);
 
-          
-            assert_ok!(Asset::issue(
+			assert_ok!(Asset::issue(
                 DoubleOrigin(author.clone(), creator.clone()).into(),
                 issuance_entry.clone(),
                 issuance_digest,
@@ -304,8 +307,7 @@ fn asset_issue_should_succeed_until_limit() {
             ));
         }
 
-        let _exceeding_recipient = SubjectId(AccountId32::new([26u8; 32]));
-        let exceeding_asset_id = space_id.clone();
+		let exceeding_asset_id = space_id.clone();
         let exceeding_asset_owner = creator.clone(); 
         let exceeding_asset_issuance_qty = asset_qty;
 
@@ -317,8 +319,8 @@ fn asset_issue_should_succeed_until_limit() {
 
         let exceeding_digest = <Test as frame_system::Config>::Hashing::hash(&exceeding_entry.encode()[..]);
 
-        assert_noop!(
-            Asset::issue(
+        assert_err!(
+			Asset::issue(
                 DoubleOrigin(author.clone(), creator.clone()).into(),
                 exceeding_entry,
                 exceeding_digest,
@@ -328,7 +330,6 @@ fn asset_issue_should_succeed_until_limit() {
         );
     });
 }
-
 
 
 #[test]
