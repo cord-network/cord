@@ -31,6 +31,7 @@ pub fn generate_authorization_id<T: Config>(digest: &SpaceCodeOf<T>) -> Authoriz
 
 pub(crate) const DID_00: SubjectId = SubjectId(AccountId32::new([1u8; 32]));
 pub(crate) const DID_01: SubjectId = SubjectId(AccountId32::new([5u8; 32]));
+pub(crate) const DID_02: SubjectId = SubjectId(AccountId32::new([6u8; 32]));
 pub(crate) const ACCOUNT_00: AccountId = AccountId::new([1u8; 32]);
 
 #[test]
@@ -1294,5 +1295,141 @@ fn nonexistent_presentation_should_fail() {
 			),
 			Error::<Test>::PresentationNotFound
 		);
+	});
+}
+
+#[test]
+fn revoking_a_registered_statement_by_a_different_delegate_should_fail() {
+	let creator = DID_00;
+	let delegate_1 = DID_01;
+	let author = ACCOUNT_00;
+	let delegate_2 = DID_02;
+
+	let capacity = 10u64;
+
+	let statement_1 = [77u8; 32];
+	let statement_digest_1 = <Test as frame_system::Config>::Hashing::hash(&statement_1[..]);
+
+	let statement_2 = [77u8; 32];
+	let statement_digest_2 = <Test as frame_system::Config>::Hashing::hash(&statement_2[..]);
+
+	let new_statement_1 = [66u8; 32];
+	let new_statement_digest_1 =
+		<Test as frame_system::Config>::Hashing::hash(&new_statement_1[..]);
+
+	let new_statement_2 = [66u8; 32];
+	let new_statement_digest_2 =
+		<Test as frame_system::Config>::Hashing::hash(&new_statement_2[..]);
+
+	let raw_space = [2u8; 256].to_vec();
+	let space_digest = <Test as frame_system::Config>::Hashing::hash(&raw_space.encode()[..]);
+	let space_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&space_digest.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let space_id: SpaceIdOf = generate_space_id::<Test>(&space_id_digest);
+
+	let auth_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&space_id.encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let authorization_id: Ss58Identifier = generate_authorization_id::<Test>(&auth_digest);
+
+	let raw_schema = [11u8; 256].to_vec();
+	let schema: InputSchemaOf<Test> = BoundedVec::try_from(raw_schema)
+		.expect("Test Schema should fit into the expected input length of for the test runtime.");
+	let schema_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&schema.encode()[..], &space_id.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let schema_id: SchemaIdOf = generate_schema_id::<Test>(&schema_id_digest);
+
+	let auth_digest_1 = <Test as frame_system::Config>::Hashing::hash(
+		&[&space_id.encode()[..], &delegate_1.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let authorization_id_1: Ss58Identifier = generate_authorization_id::<Test>(&auth_digest_1);
+
+	let auth_digest_2 = <Test as frame_system::Config>::Hashing::hash(
+		&[&space_id.encode()[..], &delegate_2.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let authorization_id_2: Ss58Identifier = generate_authorization_id::<Test>(&auth_digest_2);
+
+	let statement_id_digest_1 = <Test as frame_system::Config>::Hashing::hash(
+		&[&statement_digest_1.encode()[..], &space_id.encode()[..], &delegate_1.encode()[..]]
+			.concat()[..],
+	);
+
+	let statement_id_1: StatementIdOf = generate_statement_id::<Test>(&statement_id_digest_1);
+
+	let statement_id_digest_2 = <Test as frame_system::Config>::Hashing::hash(
+		&[&statement_digest_2.encode()[..], &space_id.encode()[..], &delegate_2.encode()[..]]
+			.concat()[..],
+	);
+
+	let statement_id_2: StatementIdOf = generate_statement_id::<Test>(&statement_id_digest_2);
+
+	new_test_ext().execute_with(|| {
+		// Create a space with `creator`.
+		assert_ok!(Space::create(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			space_digest,
+		));
+
+		// Approve the space with the `creator`.
+		assert_ok!(Space::approve(RawOrigin::Root.into(), space_id.clone(), capacity));
+
+		// Create a schema with the `creator`.
+		assert_ok!(Schema::create(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			schema.clone(),
+			authorization_id.clone()
+		));
+
+		// Add a delegate `delegate-1` using `creator` (admin) authorization-id.
+		assert_ok!(Space::add_delegate(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			space_id.clone(),
+			delegate_1.clone(),
+			authorization_id.clone(),
+		));
+
+		// Add a delegate `delegate-2` using `creator` (admin) authorization-id.
+		assert_ok!(Space::add_delegate(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			space_id.clone(),
+			delegate_2.clone(),
+			authorization_id.clone(),
+		));
+
+		// Create a statement-1 with delegate-1 as the creator.
+		assert_ok!(Statement::register(
+			DoubleOrigin(author.clone(), delegate_1.clone()).into(),
+			statement_digest_1,
+			authorization_id_1.clone(),
+			Some(schema_id.clone())
+		));
+
+		// Create a statement-2 with delegate-2 as the creator.
+		assert_ok!(Statement::register(
+			DoubleOrigin(author.clone(), delegate_2.clone()).into(),
+			statement_digest_2,
+			authorization_id_2.clone(),
+			Some(schema_id)
+		));
+
+		// Update the statement-1 using delegate-2 authorization-id.
+		// Ideally should below fail?
+		assert_ok!(Statement::update(
+			DoubleOrigin(author.clone(), delegate_1).into(),
+			statement_id_1,
+			new_statement_digest_1,
+			authorization_id_1,
+		));
+
+		// Update the statement-2 using delegate-1 authorization-id.
+		// Ideally should below fail?
+		assert_ok!(Statement::update(
+			DoubleOrigin(author, delegate_2).into(),
+			statement_id_2,
+			new_statement_digest_2,
+			authorization_id_2,
+		));
 	});
 }
