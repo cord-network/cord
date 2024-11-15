@@ -1,9 +1,9 @@
 use super::*;
 use crate::mock::*;
+use crate::{types::AssetIssuanceEntry, Error};
 use codec::Encode;
 use cord_utilities::mock::{mock_origin::DoubleOrigin, SubjectId};
-use frame_support::{assert_err, assert_ok, assert_noop, BoundedVec};
-use crate::{Error, types::{ AssetIssuanceEntry}};
+use frame_support::{assert_err, assert_noop, assert_ok, BoundedVec};
 use frame_system::RawOrigin;
 use pallet_chain_space::{SpaceCodeOf, SpaceIdOf};
 use sp_runtime::{traits::Hash, AccountId32};
@@ -230,107 +230,108 @@ fn asset_issue_should_succeed() {
 #[test]
 fn asset_issue_should_fail_when_distribution_limit_exceeds() {
 	let creator = DID_00;
-    let author = ACCOUNT_00;
-    let capacity = 25u64;
+	let author = ACCOUNT_00;
+	let capacity = 25u64;
 
-    let raw_space = [2u8; 256].to_vec();
-    let space_digest = <Test as frame_system::Config>::Hashing::hash(&raw_space.encode()[..]);
-    let space_id_digest = <Test as frame_system::Config>::Hashing::hash(
-        &[&space_digest.encode()[..], &creator.encode()[..]].concat()[..],
-    );
-    let space_id: SpaceIdOf = generate_space_id::<Test>(&space_id_digest);
+	let raw_space = [2u8; 256].to_vec();
+	let space_digest = <Test as frame_system::Config>::Hashing::hash(&raw_space.encode()[..]);
+	let space_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&space_digest.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let space_id: SpaceIdOf = generate_space_id::<Test>(&space_id_digest);
 
-    let auth_digest = <Test as frame_system::Config>::Hashing::hash(
-        &[&space_id.encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()[..],
-    );
-    let authorization_id: Ss58Identifier = generate_authorization_id::<Test>(&auth_digest);
+	let auth_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&space_id.encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let authorization_id: Ss58Identifier = generate_authorization_id::<Test>(&auth_digest);
 
-    let asset_desc = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
-    let asset_tag = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
-    let asset_meta = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
-    let asset_qty = 1;
-    let asset_value = 10;
-    let asset_type = AssetTypeOf::MF;
+	let asset_desc = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
+	let asset_tag = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
+	let asset_meta = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
+	let asset_qty = 1;
+	let asset_value = 10;
+	let asset_type = AssetTypeOf::MF;
 
-    let entry = AssetInputEntryOf::<Test> {
-        asset_desc,
-        asset_qty,
-        asset_type,
-        asset_value,
-        asset_tag,
-        asset_meta,
-    };
+	let entry = AssetInputEntryOf::<Test> {
+		asset_desc,
+		asset_qty,
+		asset_type,
+		asset_value,
+		asset_tag,
+		asset_meta,
+	};
 
-    let digest = <Test as frame_system::Config>::Hashing::hash(&[&entry.encode()[..]].concat()[..]);
+	let digest = <Test as frame_system::Config>::Hashing::hash(&[&entry.encode()[..]].concat()[..]);
 
 	let issue_id_digest = <Test as frame_system::Config>::Hashing::hash(
 		&[&digest.encode()[..], &space_id.encode()[..], &creator.encode()[..]].concat()[..],
 	);
 
-    new_test_ext().execute_with(|| {
-        let space_id_clone = space_id.clone();
-        let _authorization_id_clone = authorization_id.clone();
+	new_test_ext().execute_with(|| {
+		let space_id_clone = space_id.clone();
+		let _authorization_id_clone = authorization_id.clone();
 
-        assert_ok!(Space::create(
-            DoubleOrigin(author.clone(), creator.clone()).into(),
-            space_digest,
-        ));
+		assert_ok!(Space::create(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			space_digest,
+		));
 
-        assert_ok!(Space::approve(RawOrigin::Root.into(), space_id_clone, capacity));
+		assert_ok!(Space::approve(RawOrigin::Root.into(), space_id_clone, capacity));
 
-        assert_ok!(Asset::create(
-            DoubleOrigin(author.clone(), creator.clone()).into(),
-            entry.clone(),
-            digest,
-            authorization_id.clone()
-        ));
+		assert_ok!(Asset::create(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			entry.clone(),
+			digest,
+			authorization_id.clone()
+		));
 
-        let _recipient = SubjectId(AccountId32::new([1u8; 32])); 
-        let asset_id: Ss58Identifier = generate_asset_id::<Test>(&issue_id_digest);
-        let asset_owner = creator.clone();
-        let asset_issuance_qty = asset_qty;
+		let _recipient = SubjectId(AccountId32::new([1u8; 32]));
+		let asset_id: Ss58Identifier = generate_asset_id::<Test>(&issue_id_digest);
+		let asset_owner = creator.clone();
+		let asset_issuance_qty = asset_qty;
 
-        for _ in 1..=capacity {
-            let issuance_entry = AssetIssuanceEntry {
-                asset_id: asset_id.clone(),
-                asset_owner: asset_owner.clone(),
-                asset_issuance_qty: Some(asset_issuance_qty),
-            };
+		for _ in 1..=capacity {
+			let issuance_entry = AssetIssuanceEntry {
+				asset_id: asset_id.clone(),
+				asset_owner: asset_owner.clone(),
+				asset_issuance_qty: Some(asset_issuance_qty),
+			};
 
-            let issuance_digest = <Test as frame_system::Config>::Hashing::hash(&issuance_entry.encode()[..]);
+			let issuance_digest =
+				<Test as frame_system::Config>::Hashing::hash(&issuance_entry.encode()[..]);
 
 			assert_ok!(Asset::issue(
-                DoubleOrigin(author.clone(), creator.clone()).into(),
-                issuance_entry.clone(),
-                issuance_digest,
-                authorization_id.clone() 
-            ));
-        }
+				DoubleOrigin(author.clone(), creator.clone()).into(),
+				issuance_entry.clone(),
+				issuance_digest,
+				authorization_id.clone()
+			));
+		}
 
 		let exceeding_asset_id = space_id.clone();
-        let exceeding_asset_owner = creator.clone(); 
-        let exceeding_asset_issuance_qty = asset_qty;
+		let exceeding_asset_owner = creator.clone();
+		let exceeding_asset_issuance_qty = asset_qty;
 
-        let exceeding_entry = AssetIssuanceEntry {
-            asset_id: exceeding_asset_id,
-            asset_owner: exceeding_asset_owner,
-            asset_issuance_qty: Some(exceeding_asset_issuance_qty),
-        };
+		let exceeding_entry = AssetIssuanceEntry {
+			asset_id: exceeding_asset_id,
+			asset_owner: exceeding_asset_owner,
+			asset_issuance_qty: Some(exceeding_asset_issuance_qty),
+		};
 
-        let exceeding_digest = <Test as frame_system::Config>::Hashing::hash(&exceeding_entry.encode()[..]);
+		let exceeding_digest =
+			<Test as frame_system::Config>::Hashing::hash(&exceeding_entry.encode()[..]);
 
-        assert_err!(
+		assert_err!(
 			Asset::issue(
-                DoubleOrigin(author.clone(), creator.clone()).into(),
-                exceeding_entry,
-                exceeding_digest,
-                authorization_id.clone()
-            ),
-            Error::<Test>::DistributionLimitExceeded
-        );
-    });
+				DoubleOrigin(author.clone(), creator.clone()).into(),
+				exceeding_entry,
+				exceeding_digest,
+				authorization_id.clone()
+			),
+			Error::<Test>::DistributionLimitExceeded
+		);
+	});
 }
-
 
 #[test]
 fn asset_overissuance_should_fail() {
