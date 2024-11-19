@@ -325,7 +325,14 @@ pub mod pallet {
 			let mut entry = RegistryEntries::<T>::get(&registry_entry_id)
 				.ok_or(Error::<T>::RegistryEntryIdentifierDoesNotExist)?;
 
-			ensure!(entry.registry_id == registry_id, Error::<T>::UnauthorizedOperation);
+			ensure!(registry_id == entry.registry_id, Error::<T>::UnauthorizedOperation);
+
+			let is_admin =
+				pallet_registries::Pallet::<T>::is_admin_authorization(&authorization, &updater);
+
+			let is_creator = entry.creator == updater;
+
+			ensure!(is_admin || is_creator, Error::<T>::UnauthorizedOperation);
 
 			entry.digest = digest;
 

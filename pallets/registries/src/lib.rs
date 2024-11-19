@@ -1075,7 +1075,6 @@ impl<T: Config> Pallet<T> {
 		Self::validate_registry_for_restore_transaction(&d.registry_id)?;
 
 		ensure!(d.permissions.contains(Permissions::ADMIN), Error::<T>::UnauthorizedOperation);
-		// ensure!(d.permissions.contains(Permissions::ASSERT), Error::<T>::UnauthorizedOperation);
 
 		Ok(d.registry_id)
 	}
@@ -1212,6 +1211,45 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
+	/// Checks if the given authorization ID is associated with an `ADMIN` permission for the
+	/// provided delegate.
+	///
+	/// This function retrieves the authorization entry from storage and verifies whether the
+	/// `delegate` matches the associated `RegistryCreator` and if the delegate holds the `ADMIN`
+	/// permission.
+	///
+	/// # Parameters
+	/// - `authorization_id`: The identifier of the authorization to check.
+	/// - `delegate`: The delegate (typically the creator of the registry) to check the
+	///   authorization for.
+	///
+	/// # Returns
+	/// - `true` if the authorization exists, the `delegate` matches the stored delegate, and the
+	///   `delegate` has the `ADMIN` permission.
+	/// - `false` if the authorization does not exist, the `delegate` does not match, or the
+	///   `delegate` lacks the `ADMIN` permission.
+	///
+	/// # Example
+	/// ```
+	/// let is_admin = is_admin_authorization(&authorization_id, &delegate);
+	/// if is_admin {
+	///     // The delegate has admin permissions
+	/// } else {
+	///     // The delegate does not have admin permissions
+	/// }
+	/// ```
+	pub fn is_admin_authorization(
+		authorization_id: &AuthorizationIdOf,
+		delegate: &RegistryCreatorOf<T>,
+	) -> bool {
+		if let Some(auth) = <Authorizations<T>>::get(authorization_id) {
+			if auth.delegate == *delegate && auth.permissions.contains(Permissions::ADMIN) {
+				return true;
+			}
+		}
+		false
+	}
+
 	/// Updates the global timeline with a new activity event for a registry.
 	///
 	/// This function is an internal mechanism that logs each significant change
@@ -1263,7 +1301,3 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 }
-
-// TODO:
-// Check permission required for `restore` & `reinstate`. Currently ASSERT is being checked.
-// In chainspace implementation it requires ASSERT permission for `restore`.
