@@ -1,6 +1,5 @@
 use super::*;
-use crate::mock::*;
-use crate::{types::AssetIssuanceEntry, Error};
+use crate::{mock::*, types::AssetIssuanceEntry, Error};
 use codec::Encode;
 use cord_utilities::mock::{mock_origin::DoubleOrigin, SubjectId};
 use frame_support::{assert_err, assert_noop, assert_ok, BoundedVec};
