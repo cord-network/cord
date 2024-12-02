@@ -402,7 +402,7 @@ fn cord_weave_custom_genesis(
 	initial_authorities: Vec<(AccountId, BabeId, GrandpaId, ImOnlineId, AuthorityDiscoveryId)>,
 	root_key: AccountId,
 ) -> serde_json::Value {
-	const ENDOWMENT: Balance = 10_000_000 * WAY;
+	const ENDOWMENT: Balance = 100_000_000_000 * WAY;
 
 	serde_json::json!( {
 		"balances": {
