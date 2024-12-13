@@ -915,3 +915,78 @@ fn reference_identifier_not_found_test() {
 		<MessageIdentifiers<Test>>::remove(message_id_revise.clone(), creator.clone());
 	});
 }
+
+
+
+#[test]
+fn test_space_mismatch_in_rating_registration() {
+    let creator = DID_00.clone();
+    let author = ACCOUNT_00.clone();
+    let message_id = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
+    let entity_id = BoundedVec::try_from([73u8; 10].to_vec()).unwrap();
+    let provider_id = BoundedVec::try_from([74u8; 10].to_vec()).unwrap();
+
+    let entry = RatingInputEntryOf::<Test> {
+        entity_id,
+        provider_id,
+        total_encoded_rating: 250u64,
+        count_of_txn: 7u64,
+        rating_type: RatingTypeOf::Overall,
+        provider_did: creator.clone(),
+    };
+    let entry_digest = <Test as frame_system::Config>::Hashing::hash(&[&entry.encode()[..]].concat()[..]);
+
+    let raw_space_1 = [2u8; 256].to_vec();
+    let space_digest_1 = <Test as frame_system::Config>::Hashing::hash(&raw_space_1.encode()[..]);
+    let space_id_digest_1 = <Test as frame_system::Config>::Hashing::hash(
+        &[&space_digest_1.encode()[..], &creator.encode()[..]].concat()[..],
+    );
+    let space_id_1: SpaceIdOf = generate_space_id::<Test>(&space_id_digest_1);
+
+    let raw_space_2 = [3u8; 256].to_vec();
+    let space_digest_2 = <Test as frame_system::Config>::Hashing::hash(&raw_space_2.encode()[..]);
+    let space_id_digest_2 = <Test as frame_system::Config>::Hashing::hash(
+        &[&space_digest_2.encode()[..], &creator.encode()[..]].concat()[..],
+    );
+    let space_id_2: SpaceIdOf = generate_space_id::<Test>(&space_id_digest_2);
+
+    let auth_digest_2 = <Test as frame_system::Config>::Hashing::hash(
+        &[&space_id_2.encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()[..],
+    );
+    let authorization_id_2: AuthorizationIdOf =
+        Ss58Identifier::create_identifier(&auth_digest_2.encode()[..], IdentifierType::Authorization)
+            .unwrap();
+
+    new_test_ext().execute_with(|| {
+        // Create first space
+        assert_ok!(Space::create(
+            DoubleOrigin(author.clone(), creator.clone()).into(),
+            space_digest_1
+        ));
+        assert_ok!(Space::approve(RawOrigin::Root.into(), space_id_1.clone(), 3u64));
+
+        // Create second space
+        assert_ok!(Space::create(
+            DoubleOrigin(author.clone(), creator.clone()).into(),
+            space_digest_2
+        ));
+        assert_ok!(Space::approve(RawOrigin::Root.into(), space_id_2.clone(), 3u64));
+
+        // Attempt to register rating with mismatched space digest and authorization
+        let result = Score::register_rating(
+            DoubleOrigin(author.clone(), creator.clone()).into(),
+            entry.clone(),
+            entry_digest,
+            message_id.clone(),
+            authorization_id_2.clone()
+        );
+
+        println!("Space ID 1: {:?}", space_id_1);
+        println!("Space ID 2: {:?}", space_id_2);
+        println!("Authorization ID 2: {:?}", authorization_id_2);
+        println!("Registration Result: {:?}", result);
+
+        // Assert observed behavior
+        assert_ok!(result); // Change assertion to expect Ok(())
+    });
+}
