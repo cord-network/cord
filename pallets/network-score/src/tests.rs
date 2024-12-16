@@ -918,6 +918,7 @@ fn reference_identifier_not_found_test() {
 
 
 
+
 #[test]
 fn test_space_mismatch_in_rating_registration() {
     let creator = DID_00.clone();
@@ -925,6 +926,9 @@ fn test_space_mismatch_in_rating_registration() {
     let message_id = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
     let entity_id = BoundedVec::try_from([73u8; 10].to_vec()).unwrap();
     let provider_id = BoundedVec::try_from([74u8; 10].to_vec()).unwrap();
+
+    // Create a different creator by using a different byte array
+    let different_creator: SubjectId = SubjectId(AccountId32::new([2u8; 32]));
 
     let entry = RatingInputEntryOf::<Test> {
         entity_id,
@@ -950,8 +954,9 @@ fn test_space_mismatch_in_rating_registration() {
     );
     let space_id_2: SpaceIdOf = generate_space_id::<Test>(&space_id_digest_2);
 
+    // Create an authorization for a different space (space_id_1)
     let auth_digest_2 = <Test as frame_system::Config>::Hashing::hash(
-        &[&space_id_2.encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()[..],
+        &[&space_id_1.encode()[..], &different_creator.encode()[..], &different_creator.encode()[..]].concat()[..],
     );
     let authorization_id_2: AuthorizationIdOf =
         Ss58Identifier::create_identifier(&auth_digest_2.encode()[..], IdentifierType::Authorization)
@@ -972,21 +977,22 @@ fn test_space_mismatch_in_rating_registration() {
         ));
         assert_ok!(Space::approve(RawOrigin::Root.into(), space_id_2.clone(), 3u64));
 
-        // Attempt to register rating with mismatched space digest and authorization
+        // Attempt to register rating with mismatched space authorization
         let result = Score::register_rating(
             DoubleOrigin(author.clone(), creator.clone()).into(),
             entry.clone(),
             entry_digest,
             message_id.clone(),
-            authorization_id_2.clone()
+            authorization_id_2.clone() 
         );
 
+        // Print detailed debug information
         println!("Space ID 1: {:?}", space_id_1);
         println!("Space ID 2: {:?}", space_id_2);
-        println!("Authorization ID 2: {:?}", authorization_id_2);
+        println!("Authorization ID: {:?}", authorization_id_2);
         println!("Registration Result: {:?}", result);
 
-        // Assert observed behavior
-        assert_ok!(result); // Change assertion to expect Ok(())
+        // Assert that the registration fails due to mismatched authorization
+        assert!(result.is_err(), "Registration should fail with mismatched authorization");
     });
 }
