@@ -1238,3 +1238,893 @@ fn update_registry_entry_should_fail_for_non_registry_admin() {
 		);
 	});
 }
+
+#[test]
+fn update_ownership_of_registry_entry_creator_should_work_for_creator() {
+	let admin = ACCOUNT_00;
+	let creator = ACCOUNT_01;
+	let new_owner = ACCOUNT_02;
+	let registry = [2u8; 256].to_vec();
+
+	let raw_blob = [2u8; 256].to_vec();
+	let blob: RegistryBlobOf<Test> = BoundedVec::try_from(raw_blob)
+		.expect("Test blob should fit into the expected input length of for the test runtime.");
+
+	let registry_digest = <Test as frame_system::Config>::Hashing::hash(&registry.encode()[..]);
+
+	let id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_digest.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let registry_id: RegistryIdOf = generate_registry_id::<Test>(&id_digest);
+
+	let auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_id.encode()[..], &admin.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let authorization_id: AuthorizationIdOf = generate_authorization_id::<Test>(&auth_id_digest);
+
+	let creator_auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_id.encode()[..], &creator.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let creator_authorization_id: AuthorizationIdOf =
+		generate_authorization_id::<Test>(&creator_auth_id_digest);
+
+	let new_owner_auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_id.encode()[..], &new_owner.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let new_owner_authorization_id: AuthorizationIdOf =
+		generate_authorization_id::<Test>(&new_owner_auth_id_digest);
+
+	let raw_schema = [2u8; 256].to_vec();
+	let schema: InputSchemaOf<Test> = BoundedVec::try_from(raw_schema)
+		.expect("Test Schema should fit into the expected input length of for the test runtime.");
+	let _digest: SchemaHashOf<Test> = <Test as frame_system::Config>::Hashing::hash(&schema[..]);
+	let schema_id_digest = <Test as frame_system::Config>::Hashing::hash(&schema.encode()[..]);
+	let schema_id: SchemaIdOf = generate_schema_id::<Test>(&schema_id_digest);
+
+	new_test_ext().execute_with(|| {
+		/* Test creation of a Registry */
+		assert_ok!(Registries::create(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_id.clone(),
+			registry_digest,
+			Some(schema_id),
+			Some(blob),
+		));
+
+		/* Add Registry Entry `creator` as a delegate */
+		assert_ok!(Registries::add_delegate(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_id.clone(),
+			creator.clone(),
+			authorization_id.clone(),
+		));
+
+		/* Add Registry Entry `new_owner` as a delegate */
+		assert_ok!(Registries::add_delegate(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_id.clone(),
+			new_owner.clone(),
+			authorization_id.clone(),
+		));
+
+		/* Assumed JSON for Registry Entry */
+		let registry_entry_json_object = json!({
+			"name": "Alice",
+			"age": 25,
+			"email": "alice@dhiway.com",
+			"isActive": true,
+			"address": {
+				"street": "Koramangala",
+				"city": "Bengaluru",
+				"zipcode": "560001"
+			},
+			"phoneNumbers": [
+				"+91-234787324",
+				"+91-283746823"
+			]
+		});
+
+		let registry_entry_json_string =
+			serde_json::to_string(&registry_entry_json_object).expect("Failed to serialize JSON");
+
+		let registry_entry_raw_bytes = registry_entry_json_string.as_bytes().to_vec();
+
+		let registry_entry_blob: RegistryEntryBlobOf<Test> =
+			BoundedVec::try_from(registry_entry_raw_bytes.clone()).expect(
+				"Test Blob should fit into the expected input length of BLOB for the test runtime.",
+			);
+
+		let registry_entry_digest: RegistryHashOf<Test> =
+			<Test as frame_system::Config>::Hashing::hash(&registry_entry_raw_bytes.encode()[..]);
+
+		let registry_entry_id_digest = <Test as frame_system::Config>::Hashing::hash(
+			&[
+				&registry_entry_digest.encode()[..],
+				&registry_id.encode()[..],
+				&creator.encode()[..],
+			]
+			.concat()[..],
+		);
+
+		let registry_entry_id: RegistryEntryIdOf =
+			generate_registry_entry_id::<Test>(&registry_entry_id_digest);
+
+		assert_ok!(Entries::create(
+			frame_system::RawOrigin::Signed(creator.clone()).into(),
+			registry_entry_id.clone(),
+			creator_authorization_id.clone(),
+			registry_entry_digest,
+			Some(registry_entry_blob.clone()),
+		));
+
+		/* Check if the Entry was created */
+		assert!(RegistryEntries::<Test>::contains_key(registry_entry_id.clone()));
+		let entry = RegistryEntries::<Test>::get(registry_entry_id.clone()).unwrap();
+
+		/* Check for values stored are correct after ownership update */
+		assert_eq!(entry.creator, creator.clone());
+		assert_eq!(entry.digest, registry_entry_digest);
+		assert_eq!(entry.registry_id, registry_id);
+		assert_eq!(entry.revoked, false);
+
+		/* Change the ownership to newer owner */
+		assert_ok!(Entries::update_ownership(
+			frame_system::RawOrigin::Signed(creator.clone()).into(),
+			registry_entry_id.clone(),
+			creator_authorization_id.clone(),
+			new_owner.clone(),
+			new_owner_authorization_id.clone(),
+		));
+
+		/* Check if the Entry was updated */
+		assert!(RegistryEntries::<Test>::contains_key(registry_entry_id.clone()));
+		let entry = RegistryEntries::<Test>::get(registry_entry_id.clone()).unwrap();
+
+		/* Check for values stored are correct after ownership update */
+		assert_eq!(entry.creator, new_owner.clone());
+		assert_eq!(entry.digest, registry_entry_digest);
+		assert_eq!(entry.registry_id, registry_id);
+		assert_eq!(entry.revoked, false);
+
+		/* Check for successful event emission of RegistryEntryOwnershipUpdated */
+		System::assert_last_event(
+			Event::RegistryEntryOwnershipUpdated {
+				updater: creator.clone(),
+				new_owner: new_owner.clone(),
+				registry_entry_id: registry_entry_id.clone(),
+			}
+			.into(),
+		);
+	});
+}
+
+#[test]
+fn update_ownership_of_registry_entry_creator_should_work_for_admin() {
+	let admin = ACCOUNT_00;
+	let creator = ACCOUNT_01;
+	let new_owner = ACCOUNT_02;
+	let registry = [2u8; 256].to_vec();
+
+	let raw_blob = [2u8; 256].to_vec();
+	let blob: RegistryBlobOf<Test> = BoundedVec::try_from(raw_blob)
+		.expect("Test blob should fit into the expected input length of for the test runtime.");
+
+	let registry_digest = <Test as frame_system::Config>::Hashing::hash(&registry.encode()[..]);
+
+	let id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_digest.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let registry_id: RegistryIdOf = generate_registry_id::<Test>(&id_digest);
+
+	let auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_id.encode()[..], &admin.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let authorization_id: AuthorizationIdOf = generate_authorization_id::<Test>(&auth_id_digest);
+
+	let creator_auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_id.encode()[..], &creator.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let creator_authorization_id: AuthorizationIdOf =
+		generate_authorization_id::<Test>(&creator_auth_id_digest);
+
+	let new_owner_auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_id.encode()[..], &new_owner.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let new_owner_authorization_id: AuthorizationIdOf =
+		generate_authorization_id::<Test>(&new_owner_auth_id_digest);
+
+	let raw_schema = [2u8; 256].to_vec();
+	let schema: InputSchemaOf<Test> = BoundedVec::try_from(raw_schema)
+		.expect("Test Schema should fit into the expected input length of for the test runtime.");
+	let _digest: SchemaHashOf<Test> = <Test as frame_system::Config>::Hashing::hash(&schema[..]);
+	let schema_id_digest = <Test as frame_system::Config>::Hashing::hash(&schema.encode()[..]);
+	let schema_id: SchemaIdOf = generate_schema_id::<Test>(&schema_id_digest);
+
+	new_test_ext().execute_with(|| {
+		/* Test creation of a Registry */
+		assert_ok!(Registries::create(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_id.clone(),
+			registry_digest,
+			Some(schema_id),
+			Some(blob),
+		));
+
+		/* Add Registry Entry `creator` as a delegate */
+		assert_ok!(Registries::add_delegate(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_id.clone(),
+			creator.clone(),
+			authorization_id.clone(),
+		));
+
+		/* Add Registry Entry `new_owner` as a delegate */
+		assert_ok!(Registries::add_delegate(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_id.clone(),
+			new_owner.clone(),
+			authorization_id.clone(),
+		));
+
+		/* Assumed JSON for Registry Entry */
+		let registry_entry_json_object = json!({
+			"name": "Alice",
+			"age": 25,
+			"email": "alice@dhiway.com",
+			"isActive": true,
+			"address": {
+				"street": "Koramangala",
+				"city": "Bengaluru",
+				"zipcode": "560001"
+			},
+			"phoneNumbers": [
+				"+91-234787324",
+				"+91-283746823"
+			]
+		});
+
+		let registry_entry_json_string =
+			serde_json::to_string(&registry_entry_json_object).expect("Failed to serialize JSON");
+
+		let registry_entry_raw_bytes = registry_entry_json_string.as_bytes().to_vec();
+
+		let registry_entry_blob: RegistryEntryBlobOf<Test> =
+			BoundedVec::try_from(registry_entry_raw_bytes.clone()).expect(
+				"Test Blob should fit into the expected input length of BLOB for the test runtime.",
+			);
+
+		let registry_entry_digest: RegistryHashOf<Test> =
+			<Test as frame_system::Config>::Hashing::hash(&registry_entry_raw_bytes.encode()[..]);
+
+		let registry_entry_id_digest = <Test as frame_system::Config>::Hashing::hash(
+			&[
+				&registry_entry_digest.encode()[..],
+				&registry_id.encode()[..],
+				&creator.encode()[..],
+			]
+			.concat()[..],
+		);
+
+		let registry_entry_id: RegistryEntryIdOf =
+			generate_registry_entry_id::<Test>(&registry_entry_id_digest);
+
+		assert_ok!(Entries::create(
+			frame_system::RawOrigin::Signed(creator.clone()).into(),
+			registry_entry_id.clone(),
+			creator_authorization_id.clone(),
+			registry_entry_digest,
+			Some(registry_entry_blob.clone()),
+		));
+
+		/* Check if the Entry was created */
+		assert!(RegistryEntries::<Test>::contains_key(registry_entry_id.clone()));
+		let entry = RegistryEntries::<Test>::get(registry_entry_id.clone()).unwrap();
+
+		/* Check for values stored are correct after ownership update */
+		assert_eq!(entry.creator, creator.clone());
+		assert_eq!(entry.digest, registry_entry_digest);
+		assert_eq!(entry.registry_id, registry_id);
+		assert_eq!(entry.revoked, false);
+
+		/* Change the ownership to newer owner, signed by the Registry Admin */
+		assert_ok!(Entries::update_ownership(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_entry_id.clone(),
+			authorization_id.clone(),
+			new_owner.clone(),
+			new_owner_authorization_id.clone(),
+		));
+
+		/* Check if the Entry was updated */
+		assert!(RegistryEntries::<Test>::contains_key(registry_entry_id.clone()));
+		let entry = RegistryEntries::<Test>::get(registry_entry_id.clone()).unwrap();
+
+		/* Check for values stored are correct after ownership update */
+		assert_eq!(entry.creator, new_owner.clone());
+		assert_eq!(entry.digest, registry_entry_digest);
+		assert_eq!(entry.registry_id, registry_id);
+		assert_eq!(entry.revoked, false);
+
+		/* Check for successful event emission of RegistryEntryOwnershipUpdated */
+		System::assert_last_event(
+			Event::RegistryEntryOwnershipUpdated {
+				updater: admin.clone(),
+				new_owner: new_owner.clone(),
+				registry_entry_id: registry_entry_id.clone(),
+			}
+			.into(),
+		);
+	});
+}
+
+#[test]
+fn new_owner_should_be_able_to_perform_registry_entry_operations_after_ownership_change() {
+	let admin = ACCOUNT_00;
+	let creator = ACCOUNT_01;
+	let new_owner = ACCOUNT_02;
+	let registry = [2u8; 256].to_vec();
+
+	let raw_blob = [2u8; 256].to_vec();
+	let blob: RegistryBlobOf<Test> = BoundedVec::try_from(raw_blob)
+		.expect("Test blob should fit into the expected input length of for the test runtime.");
+
+	let registry_digest = <Test as frame_system::Config>::Hashing::hash(&registry.encode()[..]);
+
+	let id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_digest.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let registry_id: RegistryIdOf = generate_registry_id::<Test>(&id_digest);
+
+	let auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_id.encode()[..], &admin.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let authorization_id: AuthorizationIdOf = generate_authorization_id::<Test>(&auth_id_digest);
+
+	let creator_auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_id.encode()[..], &creator.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let creator_authorization_id: AuthorizationIdOf =
+		generate_authorization_id::<Test>(&creator_auth_id_digest);
+
+	let new_owner_auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_id.encode()[..], &new_owner.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let new_owner_authorization_id: AuthorizationIdOf =
+		generate_authorization_id::<Test>(&new_owner_auth_id_digest);
+
+	let raw_schema = [2u8; 256].to_vec();
+	let schema: InputSchemaOf<Test> = BoundedVec::try_from(raw_schema)
+		.expect("Test Schema should fit into the expected input length of for the test runtime.");
+	let _digest: SchemaHashOf<Test> = <Test as frame_system::Config>::Hashing::hash(&schema[..]);
+	let schema_id_digest = <Test as frame_system::Config>::Hashing::hash(&schema.encode()[..]);
+	let schema_id: SchemaIdOf = generate_schema_id::<Test>(&schema_id_digest);
+
+	new_test_ext().execute_with(|| {
+		/* Test creation of a Registry */
+		assert_ok!(Registries::create(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_id.clone(),
+			registry_digest,
+			Some(schema_id),
+			Some(blob),
+		));
+
+		/* Add Registry Entry `creator` as a delegate */
+		assert_ok!(Registries::add_delegate(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_id.clone(),
+			creator.clone(),
+			authorization_id.clone(),
+		));
+
+		/* Add Registry Entry `new_owner` as a delegate */
+		assert_ok!(Registries::add_delegate(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_id.clone(),
+			new_owner.clone(),
+			authorization_id.clone(),
+		));
+
+		/* Assumed JSON for Registry Entry */
+		let registry_entry_json_object = json!({
+			"name": "Alice",
+			"age": 25,
+			"email": "alice@dhiway.com",
+			"isActive": true,
+			"address": {
+				"street": "Koramangala",
+				"city": "Bengaluru",
+				"zipcode": "560001"
+			},
+			"phoneNumbers": [
+				"+91-234787324",
+				"+91-283746823"
+			]
+		});
+
+		let registry_entry_json_string =
+			serde_json::to_string(&registry_entry_json_object).expect("Failed to serialize JSON");
+
+		let registry_entry_raw_bytes = registry_entry_json_string.as_bytes().to_vec();
+
+		let registry_entry_blob: RegistryEntryBlobOf<Test> =
+			BoundedVec::try_from(registry_entry_raw_bytes.clone()).expect(
+				"Test Blob should fit into the expected input length of BLOB for the test runtime.",
+			);
+
+		let registry_entry_digest: RegistryHashOf<Test> =
+			<Test as frame_system::Config>::Hashing::hash(&registry_entry_raw_bytes.encode()[..]);
+
+		let registry_entry_id_digest = <Test as frame_system::Config>::Hashing::hash(
+			&[
+				&registry_entry_digest.encode()[..],
+				&registry_id.encode()[..],
+				&creator.encode()[..],
+			]
+			.concat()[..],
+		);
+
+		let registry_entry_id: RegistryEntryIdOf =
+			generate_registry_entry_id::<Test>(&registry_entry_id_digest);
+
+		assert_ok!(Entries::create(
+			frame_system::RawOrigin::Signed(creator.clone()).into(),
+			registry_entry_id.clone(),
+			creator_authorization_id.clone(),
+			registry_entry_digest,
+			Some(registry_entry_blob.clone()),
+		));
+
+		/* Check if the Entry was created */
+		assert!(RegistryEntries::<Test>::contains_key(registry_entry_id.clone()));
+		let entry = RegistryEntries::<Test>::get(registry_entry_id.clone()).unwrap();
+
+		/* Check for values stored are correct after ownership update */
+		assert_eq!(entry.creator, creator.clone());
+		assert_eq!(entry.digest, registry_entry_digest);
+		assert_eq!(entry.registry_id, registry_id);
+		assert_eq!(entry.revoked, false);
+
+		/* Change the ownership to newer owner */
+		assert_ok!(Entries::update_ownership(
+			frame_system::RawOrigin::Signed(creator.clone()).into(),
+			registry_entry_id.clone(),
+			creator_authorization_id.clone(),
+			new_owner.clone(),
+			new_owner_authorization_id.clone(),
+		));
+
+		/* Check if the Entry was updated */
+		assert!(RegistryEntries::<Test>::contains_key(registry_entry_id.clone()));
+		let entry = RegistryEntries::<Test>::get(registry_entry_id.clone()).unwrap();
+
+		/* Check for values stored are correct after ownership update */
+		assert_eq!(entry.creator, new_owner.clone());
+		assert_eq!(entry.digest, registry_entry_digest);
+		assert_eq!(entry.registry_id, registry_id);
+		assert_eq!(entry.revoked, false);
+
+		/* Check for successful event emission of RegistryEntryOwnershipUpdated */
+		System::assert_last_event(
+			Event::RegistryEntryOwnershipUpdated {
+				updater: creator.clone(),
+				new_owner: new_owner.clone(),
+				registry_entry_id: registry_entry_id.clone(),
+			}
+			.into(),
+		);
+
+		/* Assumed JSON for Registry Entry */
+		let updated_registry_entry_json_object = json!({
+			"name": "BOB",
+			"age": 21,
+			"email": "bob@dhiway.com",
+			"isActive": true,
+			"address": {
+				"street": "Koramangala",
+				"city": "Bengaluru",
+				"zipcode": "560001"
+			},
+			"phoneNumbers": [
+				"+91-234787311",
+				"+91-283746811"
+			]
+		});
+
+		let updated_registry_entry_json_string =
+			serde_json::to_string(&updated_registry_entry_json_object)
+				.expect("Failed to serialize JSON");
+
+		let updated_registry_entry_raw_bytes =
+			updated_registry_entry_json_string.as_bytes().to_vec();
+
+		let updated_registry_entry_blob: RegistryEntryBlobOf<Test> =
+			BoundedVec::try_from(updated_registry_entry_raw_bytes.clone()).expect(
+				"Test Blob should fit into the expected input length of BLOB for the test runtime.",
+			);
+
+		let updated_registry_entry_digest: RegistryHashOf<Test> =
+			<Test as frame_system::Config>::Hashing::hash(
+				&updated_registry_entry_raw_bytes.encode()[..],
+			);
+
+		/* Update, revoke, restore etc or any registry entry related tasks should
+		 * be able to be performed by the new-owner */
+		assert_ok!(Entries::update(
+			frame_system::RawOrigin::Signed(new_owner.clone()).into(),
+			registry_entry_id.clone(),
+			new_owner_authorization_id.clone(),
+			updated_registry_entry_digest,
+			Some(updated_registry_entry_blob.clone()),
+		));
+
+		assert!(RegistryEntries::<Test>::contains_key(registry_entry_id.clone()));
+		let entry = RegistryEntries::<Test>::get(registry_entry_id.clone()).unwrap();
+
+		assert_eq!(entry.creator, new_owner.clone());
+		assert_eq!(entry.digest, updated_registry_entry_digest);
+		assert_eq!(entry.registry_id, registry_id);
+		assert_eq!(entry.revoked, false);
+	});
+}
+
+#[test]
+fn old_owner_should_not_be_able_to_perform_registry_entry_operations_after_ownership_change() {
+	let admin = ACCOUNT_00;
+	let creator = ACCOUNT_01;
+	let new_owner = ACCOUNT_02;
+	let registry = [2u8; 256].to_vec();
+
+	let raw_blob = [2u8; 256].to_vec();
+	let blob: RegistryBlobOf<Test> = BoundedVec::try_from(raw_blob)
+		.expect("Test blob should fit into the expected input length of for the test runtime.");
+
+	let registry_digest = <Test as frame_system::Config>::Hashing::hash(&registry.encode()[..]);
+
+	let id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_digest.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let registry_id: RegistryIdOf = generate_registry_id::<Test>(&id_digest);
+
+	let auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_id.encode()[..], &admin.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let authorization_id: AuthorizationIdOf = generate_authorization_id::<Test>(&auth_id_digest);
+
+	let creator_auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_id.encode()[..], &creator.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let creator_authorization_id: AuthorizationIdOf =
+		generate_authorization_id::<Test>(&creator_auth_id_digest);
+
+	let new_owner_auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_id.encode()[..], &new_owner.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let new_owner_authorization_id: AuthorizationIdOf =
+		generate_authorization_id::<Test>(&new_owner_auth_id_digest);
+
+	let raw_schema = [2u8; 256].to_vec();
+	let schema: InputSchemaOf<Test> = BoundedVec::try_from(raw_schema)
+		.expect("Test Schema should fit into the expected input length of for the test runtime.");
+	let _digest: SchemaHashOf<Test> = <Test as frame_system::Config>::Hashing::hash(&schema[..]);
+	let schema_id_digest = <Test as frame_system::Config>::Hashing::hash(&schema.encode()[..]);
+	let schema_id: SchemaIdOf = generate_schema_id::<Test>(&schema_id_digest);
+
+	new_test_ext().execute_with(|| {
+		/* Test creation of a Registry */
+		assert_ok!(Registries::create(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_id.clone(),
+			registry_digest,
+			Some(schema_id),
+			Some(blob),
+		));
+
+		/* Add Registry Entry `creator` as a delegate */
+		assert_ok!(Registries::add_delegate(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_id.clone(),
+			creator.clone(),
+			authorization_id.clone(),
+		));
+
+		/* Add Registry Entry `new_owner` as a delegate */
+		assert_ok!(Registries::add_delegate(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_id.clone(),
+			new_owner.clone(),
+			authorization_id.clone(),
+		));
+
+		/* Assumed JSON for Registry Entry */
+		let registry_entry_json_object = json!({
+			"name": "Alice",
+			"age": 25,
+			"email": "alice@dhiway.com",
+			"isActive": true,
+			"address": {
+				"street": "Koramangala",
+				"city": "Bengaluru",
+				"zipcode": "560001"
+			},
+			"phoneNumbers": [
+				"+91-234787324",
+				"+91-283746823"
+			]
+		});
+
+		let registry_entry_json_string =
+			serde_json::to_string(&registry_entry_json_object).expect("Failed to serialize JSON");
+
+		let registry_entry_raw_bytes = registry_entry_json_string.as_bytes().to_vec();
+
+		let registry_entry_blob: RegistryEntryBlobOf<Test> =
+			BoundedVec::try_from(registry_entry_raw_bytes.clone()).expect(
+				"Test Blob should fit into the expected input length of BLOB for the test runtime.",
+			);
+
+		let registry_entry_digest: RegistryHashOf<Test> =
+			<Test as frame_system::Config>::Hashing::hash(&registry_entry_raw_bytes.encode()[..]);
+
+		let registry_entry_id_digest = <Test as frame_system::Config>::Hashing::hash(
+			&[
+				&registry_entry_digest.encode()[..],
+				&registry_id.encode()[..],
+				&creator.encode()[..],
+			]
+			.concat()[..],
+		);
+
+		let registry_entry_id: RegistryEntryIdOf =
+			generate_registry_entry_id::<Test>(&registry_entry_id_digest);
+
+		assert_ok!(Entries::create(
+			frame_system::RawOrigin::Signed(creator.clone()).into(),
+			registry_entry_id.clone(),
+			creator_authorization_id.clone(),
+			registry_entry_digest,
+			Some(registry_entry_blob.clone()),
+		));
+
+		/* Check if the Entry was created */
+		assert!(RegistryEntries::<Test>::contains_key(registry_entry_id.clone()));
+		let entry = RegistryEntries::<Test>::get(registry_entry_id.clone()).unwrap();
+
+		/* Check for values stored are correct after ownership update */
+		assert_eq!(entry.creator, creator.clone());
+		assert_eq!(entry.digest, registry_entry_digest);
+		assert_eq!(entry.registry_id, registry_id);
+		assert_eq!(entry.revoked, false);
+
+		/* Change the ownership to newer owner */
+		assert_ok!(Entries::update_ownership(
+			frame_system::RawOrigin::Signed(creator.clone()).into(),
+			registry_entry_id.clone(),
+			creator_authorization_id.clone(),
+			new_owner.clone(),
+			new_owner_authorization_id.clone(),
+		));
+
+		/* Check if the Entry was updated */
+		assert!(RegistryEntries::<Test>::contains_key(registry_entry_id.clone()));
+		let entry = RegistryEntries::<Test>::get(registry_entry_id.clone()).unwrap();
+
+		/* Check for values stored are correct after ownership update */
+		assert_eq!(entry.creator, new_owner.clone());
+		assert_eq!(entry.digest, registry_entry_digest);
+		assert_eq!(entry.registry_id, registry_id);
+		assert_eq!(entry.revoked, false);
+
+		/* Check for successful event emission of RegistryEntryOwnershipUpdated */
+		System::assert_last_event(
+			Event::RegistryEntryOwnershipUpdated {
+				updater: creator.clone(),
+				new_owner: new_owner.clone(),
+				registry_entry_id: registry_entry_id.clone(),
+			}
+			.into(),
+		);
+
+		/* Assumed JSON for Registry Entry */
+		let updated_registry_entry_json_object = json!({
+			"name": "BOB",
+			"age": 21,
+			"email": "bob@dhiway.com",
+			"isActive": true,
+			"address": {
+				"street": "Koramangala",
+				"city": "Bengaluru",
+				"zipcode": "560001"
+			},
+			"phoneNumbers": [
+				"+91-234787311",
+				"+91-283746811"
+			]
+		});
+
+		let updated_registry_entry_json_string =
+			serde_json::to_string(&updated_registry_entry_json_object)
+				.expect("Failed to serialize JSON");
+
+		let updated_registry_entry_raw_bytes =
+			updated_registry_entry_json_string.as_bytes().to_vec();
+
+		let updated_registry_entry_blob: RegistryEntryBlobOf<Test> =
+			BoundedVec::try_from(updated_registry_entry_raw_bytes.clone()).expect(
+				"Test Blob should fit into the expected input length of BLOB for the test runtime.",
+			);
+
+		let updated_registry_entry_digest: RegistryHashOf<Test> =
+			<Test as frame_system::Config>::Hashing::hash(
+				&updated_registry_entry_raw_bytes.encode()[..],
+			);
+
+		/* Update, revoke, restore etc or any registry entry related tasks should not
+		 * be able to be performed by the old-owner (creator) */
+		assert_err!(
+			Entries::update(
+				frame_system::RawOrigin::Signed(creator.clone()).into(),
+				registry_entry_id.clone(),
+				creator_authorization_id.clone(),
+				updated_registry_entry_digest,
+				Some(updated_registry_entry_blob.clone()),
+			),
+			Error::<Test>::UnauthorizedOperation
+		);
+	});
+}
+
+#[test]
+fn update_ownership_should_fail_for_updating_themselves() {
+	let admin = ACCOUNT_00;
+	let creator = ACCOUNT_01;
+	let new_owner = ACCOUNT_02;
+	let registry = [2u8; 256].to_vec();
+
+	let raw_blob = [2u8; 256].to_vec();
+	let blob: RegistryBlobOf<Test> = BoundedVec::try_from(raw_blob)
+		.expect("Test blob should fit into the expected input length of for the test runtime.");
+
+	let registry_digest = <Test as frame_system::Config>::Hashing::hash(&registry.encode()[..]);
+
+	let id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_digest.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let registry_id: RegistryIdOf = generate_registry_id::<Test>(&id_digest);
+
+	let auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_id.encode()[..], &admin.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let authorization_id: AuthorizationIdOf = generate_authorization_id::<Test>(&auth_id_digest);
+
+	let creator_auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_id.encode()[..], &creator.encode()[..], &admin.encode()[..]].concat()[..],
+	);
+
+	let creator_authorization_id: AuthorizationIdOf =
+		generate_authorization_id::<Test>(&creator_auth_id_digest);
+
+	let raw_schema = [2u8; 256].to_vec();
+	let schema: InputSchemaOf<Test> = BoundedVec::try_from(raw_schema)
+		.expect("Test Schema should fit into the expected input length of for the test runtime.");
+	let _digest: SchemaHashOf<Test> = <Test as frame_system::Config>::Hashing::hash(&schema[..]);
+	let schema_id_digest = <Test as frame_system::Config>::Hashing::hash(&schema.encode()[..]);
+	let schema_id: SchemaIdOf = generate_schema_id::<Test>(&schema_id_digest);
+
+	new_test_ext().execute_with(|| {
+		/* Test creation of a Registry */
+		assert_ok!(Registries::create(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_id.clone(),
+			registry_digest,
+			Some(schema_id),
+			Some(blob),
+		));
+
+		/* Add Registry Entry `creator` as a delegate */
+		assert_ok!(Registries::add_delegate(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_id.clone(),
+			creator.clone(),
+			authorization_id.clone(),
+		));
+
+		/* Add Registry Entry `new_owner` as a delegate */
+		assert_ok!(Registries::add_delegate(
+			frame_system::RawOrigin::Signed(admin.clone()).into(),
+			registry_id.clone(),
+			new_owner.clone(),
+			authorization_id.clone(),
+		));
+
+		/* Assumed JSON for Registry Entry */
+		let registry_entry_json_object = json!({
+			"name": "Alice",
+			"age": 25,
+			"email": "alice@dhiway.com",
+			"isActive": true,
+			"address": {
+				"street": "Koramangala",
+				"city": "Bengaluru",
+				"zipcode": "560001"
+			},
+			"phoneNumbers": [
+				"+91-234787324",
+				"+91-283746823"
+			]
+		});
+
+		let registry_entry_json_string =
+			serde_json::to_string(&registry_entry_json_object).expect("Failed to serialize JSON");
+
+		let registry_entry_raw_bytes = registry_entry_json_string.as_bytes().to_vec();
+
+		let registry_entry_blob: RegistryEntryBlobOf<Test> =
+			BoundedVec::try_from(registry_entry_raw_bytes.clone()).expect(
+				"Test Blob should fit into the expected input length of BLOB for the test runtime.",
+			);
+
+		let registry_entry_digest: RegistryHashOf<Test> =
+			<Test as frame_system::Config>::Hashing::hash(&registry_entry_raw_bytes.encode()[..]);
+
+		let registry_entry_id_digest = <Test as frame_system::Config>::Hashing::hash(
+			&[
+				&registry_entry_digest.encode()[..],
+				&registry_id.encode()[..],
+				&creator.encode()[..],
+			]
+			.concat()[..],
+		);
+
+		let registry_entry_id: RegistryEntryIdOf =
+			generate_registry_entry_id::<Test>(&registry_entry_id_digest);
+
+		assert_ok!(Entries::create(
+			frame_system::RawOrigin::Signed(creator.clone()).into(),
+			registry_entry_id.clone(),
+			creator_authorization_id.clone(),
+			registry_entry_digest,
+			Some(registry_entry_blob.clone()),
+		));
+
+		/* Check if the Entry was created */
+		assert!(RegistryEntries::<Test>::contains_key(registry_entry_id.clone()));
+		let entry = RegistryEntries::<Test>::get(registry_entry_id.clone()).unwrap();
+
+		/* Check for values stored are correct after ownership update */
+		assert_eq!(entry.creator, creator.clone());
+		assert_eq!(entry.digest, registry_entry_digest);
+		assert_eq!(entry.registry_id, registry_id);
+		assert_eq!(entry.revoked, false);
+
+		/* Change the ownership to newer owner */
+		assert_err!(
+			Entries::update_ownership(
+				frame_system::RawOrigin::Signed(creator.clone()).into(),
+				registry_entry_id.clone(),
+				creator_authorization_id.clone(),
+				creator.clone(),
+				creator_authorization_id.clone(),
+			),
+			Error::<Test>::NewOwnerCannotBeSameAsExistingOwner
+		);
+	});
+}

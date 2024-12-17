@@ -144,6 +144,8 @@ pub mod pallet {
 		RegistryEntryIdentifierDoesNotExist,
 		/// Registry Entry has not been revoked.
 		RegistryEntryNotRevoked,
+		/// New Registry Entry owner cannot be same as existing owner.
+		NewOwnerCannotBeSameAsExistingOwner,
 	}
 
 	#[pallet::event]
@@ -168,6 +170,14 @@ pub mod pallet {
 		/// A existing registry entry has been reinstated.
 		/// \[updater, registry_enrtry_identifier\]
 		RegistryEntryReinstated { updater: T::AccountId, registry_entry_id: RegistryEntryIdOf },
+
+		/// A existing registry entry ownership has been updated.
+		/// \[updater, new_owner, registry_entry_identifier\]
+		RegistryEntryOwnershipUpdated {
+			updater: T::AccountId,
+			new_owner: T::AccountId,
+			registry_entry_id: RegistryEntryIdOf,
+		},
 	}
 
 	#[pallet::call]
@@ -458,6 +468,108 @@ pub mod pallet {
 				.map_err(<Error<T>>::from)?;
 
 			Self::deposit_event(Event::RegistryEntryReinstated { updater, registry_entry_id });
+
+			Ok(())
+		}
+
+		/// Updates the ownership of an existing Registry Entry.
+		///
+		/// This function allows an authorized user (creator or admin) to update the ownership
+		/// of an existing Registry Entry. Ownership can be transferred to a new owner within
+		/// the same Registry.
+		///
+		/// # Arguments
+		/// * `origin` - The origin of the call, which must be a signed account (updater).
+		/// * `registry_entry_id` - The unique identifier of the Registry Entry to update ownership.
+		/// * `authorization` - The authorization identifier that links the updater to the Registry.
+		/// * `new_owner` - The account identifier of the new owner of the Registry Entry.
+		/// * `new_owner_authorization` - The authorization identifier that links the new owner to
+		///   the Registry.
+		///
+		/// # Conditions
+		/// - Only the current creator (owner) of the Registry Entry or an admin of the Registry can
+		///   perform this operation.
+		/// - The new owner must be authorized within the same Registry.
+		/// - The new owner cannot be the same as the current owner to avoid unnecessary storage
+		///   writes.
+		///
+		/// # Errors
+		/// This function returns an error in the following cases:
+		/// * `RegistryEntryIdentifierDoesNotExist` - If the specified `registry_entry_id` does not
+		///   exist.
+		/// * `UnauthorizedOperation` - If the caller does not have permission to update the
+		///   ownership or if the new owner is not authorized under the same Registry.
+		/// * `NewOwnerCannotBeSameAsExistingOwner` - If the new owner is the same as the current
+		///   owner.
+		///
+		/// # Events
+		/// Emits the `Event::RegistryEntryOwnershipUpdated` event upon successful ownership update.
+		/// This event includes the `updater`, the `new_owner`, and the `registry_entry_id`.
+		///
+		/// # Example
+		/// ```rust
+		/// update_ownership(
+		///     origin,
+		///     registry_entry_id,
+		///     authorization,
+		///     new_owner,
+		///     new_owner_authorization,
+		/// )?;
+		/// ```
+		#[pallet::call_index(4)]
+		#[pallet::weight({0})]
+		pub fn update_ownership(
+			origin: OriginFor<T>,
+			registry_entry_id: RegistryEntryIdOf,
+			authorization: AuthorizationIdOf,
+			new_owner: CreatorOf<T>,
+			new_owner_authorization: AuthorizationIdOf,
+		) -> DispatchResult {
+			let updater = ensure_signed(origin)?;
+			let registry_id = pallet_registries::Pallet::<T>::ensure_authorization_origin(
+				&authorization,
+				&updater,
+			)
+			.map_err(<pallet_registries::Error<T>>::from)?;
+
+			let entry = RegistryEntries::<T>::get(&registry_entry_id)
+				.ok_or(Error::<T>::RegistryEntryIdentifierDoesNotExist)?;
+
+			ensure!(registry_id == entry.registry_id, Error::<T>::UnauthorizedOperation);
+
+			let is_admin =
+				pallet_registries::Pallet::<T>::is_admin_authorization(&authorization, &updater);
+
+			let is_creator = entry.creator == updater.clone();
+
+			ensure!(is_admin || is_creator, Error::<T>::UnauthorizedOperation);
+
+			/* Avoid having a unneccessary storage write */
+			ensure!(updater != new_owner, Error::<T>::NewOwnerCannotBeSameAsExistingOwner);
+
+			/* New Owner of the Entry(record) should be a part of the same registry */
+			let new_owner_registry_id =
+				pallet_registries::Pallet::<T>::ensure_authorization_origin(
+					&new_owner_authorization,
+					&new_owner,
+				)
+				.map_err(<pallet_registries::Error<T>>::from)?;
+			ensure!(new_owner_registry_id == entry.registry_id, Error::<T>::UnauthorizedOperation);
+
+			RegistryEntries::<T>::mutate(&registry_entry_id, |entry| {
+				if let Some(existing_entry) = entry {
+					existing_entry.creator = new_owner.clone();
+				}
+			});
+
+			Self::update_activity(&registry_entry_id, CallTypeOf::Update)
+				.map_err(<Error<T>>::from)?;
+
+			Self::deposit_event(Event::RegistryEntryOwnershipUpdated {
+				updater,
+				new_owner: new_owner.clone(),
+				registry_entry_id,
+			});
 
 			Ok(())
 		}
