@@ -74,7 +74,7 @@ impl pallet_schema_accounts::Config for Test {
 }
 
 parameter_types! {
-	pub const MaxRegistryBlobSize: u32 = 4 * 1024;
+	pub const MaxRegistryBlobSize: u32 = 16 * 1024;
 	pub const MaxRegistryDelegates: u32 = 5;
 	pub const MaxEncodedInputLength: u32 = 30;
 }
@@ -88,7 +88,7 @@ impl pallet_registries::Config for Test {
 }
 
 parameter_types! {
-	pub const MaxRegistryEntryBlobSize: u32 = 4 * 1024; // 4KB in bytes
+	pub const MaxRegistryEntryBlobSize: u32 = 16 * 1024; // 16KB in bytes
 }
 
 impl pallet_entries::Config for Test {

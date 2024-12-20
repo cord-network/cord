@@ -469,7 +469,7 @@ impl pallet_identity::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MaxRegistryEntryBlobSize: u32 = 4 * 1024; // 4KB in bytes
+	pub const MaxRegistryEntryBlobSize: u32 = 16 * 1024; // 16KB in bytes
 }
 
 impl pallet_entries::Config for Runtime {
@@ -757,7 +757,7 @@ impl pallet_chain_space::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MaxRegistryBlobSize: u32 = 4 * 1024;
+	pub const MaxRegistryBlobSize: u32 = 16 * 1024;
 	pub const MaxEncodedInputLength: u32 = 30;
 	pub const MaxRegistryDelegates: u32 = 10_000;
 }

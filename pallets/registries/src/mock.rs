@@ -76,7 +76,7 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub const MaxRegistryBlobSize: u32 = 4 * 1024;
+	pub const MaxRegistryBlobSize: u32 = 16 * 1024;
 	pub const MaxEncodedInputLength: u32 = 30;
 }
 
