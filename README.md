@@ -208,13 +208,40 @@ If you would like to contribute, please fork the repository, follow the [contrib
 
 ### Before submitting the PR
 
-There are 3 tests which run as part of PR validation.
+There are 4 tests which run as part of PR validation.
 
-- Build - `cargo build --release`
+- #### Cargo Format 
+    
+  Ensures the code format is in accordance with official Rust guidelines. Add the formatted files as part of the commit.
 
-- Clippy - `cargo clippy --all --no-deps --all-targets --features=runtime-benchmarks -- -D warnings`
+  ```bash 
+  cargo +nightly fmt --all
+  ```
 
-- Test - `cargo test --release  --locked --features=runtime-benchmarks --no-fail-fast --verbose --color always --all --all-targets`
+- #### Build 
+  
+  Transform CORD codebase into executable binary.
+
+  ```bash 
+  cargo build --release
+  ```
+
+- Clippy 
+
+  Runs the linter to maintain clean and idiomatic code.
+  
+  ```bash 
+  cargo clippy --all --no-deps --all-targets --features=runtime-benchmarks -- -D warnings`
+  ```
+
+- Test 
+  
+  Runs CORD's unit tests, integration tests and benchmarks defined for all modules.
+
+  ```bash
+  cargo test --release  --locked --features=runtime-benchmarks --no-fail-fast --verbose --color always --all --all-targets`
+  ```
+
 
 Note that each of these would take significant time to run, and hence, if you are working on a specific pallet, you can use `-p <pallet-name> --lib` instead of `--all`. That should be faster than normal full test locally.
 
