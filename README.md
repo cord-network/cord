@@ -236,10 +236,10 @@ There are 4 tests which run as part of PR validation.
 
 - Test 
   
-  Runs CORD's unit tests, integration tests and benchmarks defined for all modules.
+  Runs CORD Network unit tests, integration tests and benchmarks defined for all modules.
 
   ```bash
-  cargo test --release  --locked --features=runtime-benchmarks --no-fail-fast --verbose --color always --all --all-targets`
+  cargo test --release  --locked --features=runtime-benchmarks --no-fail-fast --verbose --color always --all --all-targets
   ```
 
 
