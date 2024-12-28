@@ -363,25 +363,22 @@ fn test_auto_expire_non_existent_membership() {
 }
 #[test]
 fn test_unauthorized_operation() {
-    new_test_ext().execute_with(|| {
-        run_to_block(1);
+	new_test_ext().execute_with(|| {
+		run_to_block(1);
 
-        let non_member = AccountId::new([14u8; 32]);
-        
-        assert_err!(
-            NetworkMembership::nominate(
-                RuntimeOrigin::signed(non_member),
-                AccountId::new([13u8; 32]),
-                true
-            ),
-            BadOrigin
-        );
+		let non_member = AccountId::new([14u8; 32]);
 
-        assert_eq!(NetworkMembership::members_count(), 1);
-        
-        assert_eq!(
-            Members::<Test>::get(AccountId::new([13u8; 32])),
-            None
-        );
-    });
+		assert_err!(
+			NetworkMembership::nominate(
+				RuntimeOrigin::signed(non_member),
+				AccountId::new([13u8; 32]),
+				true
+			),
+			BadOrigin
+		);
+
+		assert_eq!(NetworkMembership::members_count(), 1);
+
+		assert_eq!(Members::<Test>::get(AccountId::new([13u8; 32])), None);
+	});
 }
