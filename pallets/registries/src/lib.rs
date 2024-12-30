@@ -514,7 +514,6 @@ pub mod pallet {
 		///
 		/// # Parameters
 		/// - `origin`: The origin of the transaction, signed by the creator.
-		/// - `registry_id`: A unique code created to identify the registry.
 		/// - `digest`: The digest representing the registry data to be created.
 		/// - `schema_id`: (Optional) A unique code represnting the Schema.
 		/// - `blob`: (Optional) Metadata or data associated with the registry.
@@ -540,27 +539,17 @@ pub mod pallet {
 		#[pallet::weight({0})]
 		pub fn create(
 			origin: OriginFor<T>,
-			_registry_id: RegistryIdOf,
 			digest: RegistryHashOf<T>,
 			schema_id: Option<SchemaIdOf>,
 			_blob: Option<RegistryBlobOf<T>>,
 		) -> DispatchResult {
 			let creator = ensure_signed(origin)?;
 
-			// TODO: Create the identifier at SDK level & validate at chain level.
 			// Id Digest = concat (H(<scale_encoded_registry_input_digest>,
 			// <scale_encoded_creator_identifier>))
 			let id_digest = <T as frame_system::Config>::Hashing::hash(
 				&[&digest.encode()[..], &creator.encode()[..]].concat()[..],
 			);
-
-			// /* Ensure that registry_id is of valid ss58 format,
-			//  * and also the type matches to be of `Registries`.
-			//  */
-			// ensure!(
-			// 	Self::is_valid_ss58_format(&registry_id),
-			// 	Error::<T>::InvalidRegistryIdentifier
-			// );
 
 			let identifier = Ss58Identifier::create_identifier(
 				&id_digest.encode()[..],
@@ -1282,25 +1271,6 @@ impl<T: Config> Pallet<T> {
 		Timepoint {
 			height: frame_system::Pallet::<T>::block_number().unique_saturated_into(),
 			index: frame_system::Pallet::<T>::extrinsic_index().unwrap_or_default(),
-		}
-	}
-
-	/// Method to check if the input identifier calculated from sdk
-	/// is actually a valid SS58 Identifier Format and of valid type `Registries`.
-	pub fn is_valid_ss58_format(identifier: &Ss58Identifier) -> bool {
-		match identifier.get_type() {
-			Ok(id_type) =>
-				if id_type == IdentifierType::Registries {
-					log::debug!("The SS58 identifier is of type Registries.");
-					true
-				} else {
-					log::debug!("The SS58 identifier is not of type Registries.");
-					false
-				},
-			Err(e) => {
-				log::debug!("Invalid SS58 identifier. Error: {:?}", e);
-				false
-			},
 		}
 	}
 }

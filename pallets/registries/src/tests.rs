@@ -58,7 +58,6 @@ fn add_delegate_should_succeed() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob)
@@ -108,7 +107,6 @@ fn add_admin_delegate_should_succeed() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob)
@@ -158,7 +156,6 @@ fn add_admin_delegate_should_fail_if_admin_delegate_already_exists() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob)
@@ -218,7 +215,6 @@ fn add_delegator_should_succeed() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob)
@@ -267,7 +263,6 @@ fn add_delegator_should_fail_if_delegator_already_exists() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob)
@@ -425,7 +420,6 @@ fn add_delegate_should_fail_if_the_regisrty_is_revoked() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob)
@@ -484,7 +478,6 @@ fn add_delegate_should_fail_if_a_non_delegate_tries_to_add() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob)
@@ -536,7 +529,6 @@ fn add_delegate_should_fail_if_delegate_already_exists() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob)
@@ -572,12 +564,6 @@ fn creating_a_new_registries_should_succeed() {
 
 	let registry_digest = <Test as frame_system::Config>::Hashing::hash(&registry.encode()[..]);
 
-	let id_digest = <Test as frame_system::Config>::Hashing::hash(
-		&[&registry_digest.encode()[..], &creator.encode()[..]].concat()[..],
-	);
-
-	let registry_id: RegistryIdOf = generate_registry_id::<Test>(&id_digest);
-
 	let raw_schema = [2u8; 256].to_vec();
 	let schema: InputSchemaOf<Test> = BoundedVec::try_from(raw_schema)
 		.expect("Test Schema should fit into the expected input length of for the test runtime.");
@@ -588,7 +574,6 @@ fn creating_a_new_registries_should_succeed() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob),
@@ -607,12 +592,6 @@ fn creating_a_duplicate_registries_should_fail() {
 
 	let registry_digest = <Test as frame_system::Config>::Hashing::hash(&registry.encode()[..]);
 
-	let id_digest = <Test as frame_system::Config>::Hashing::hash(
-		&[&registry_digest.encode()[..], &creator.encode()[..]].concat()[..],
-	);
-
-	let registry_id: RegistryIdOf = generate_registry_id::<Test>(&id_digest);
-
 	let raw_schema = [2u8; 256].to_vec();
 	let schema: InputSchemaOf<Test> = BoundedVec::try_from(raw_schema)
 		.expect("Test Schema should fit into the expected input length of for the test runtime.");
@@ -623,7 +602,6 @@ fn creating_a_duplicate_registries_should_fail() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob.clone()),
@@ -632,7 +610,6 @@ fn creating_a_duplicate_registries_should_fail() {
 		assert_err!(
 			Registries::create(
 				frame_system::RawOrigin::Signed(creator.clone()).into(),
-				registry_id.clone(),
 				registry_digest,
 				None,
 				Some(blob),
@@ -675,7 +652,6 @@ fn revoking_a_registry_should_succeed() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob.clone()),
@@ -723,7 +699,6 @@ fn reinstating_an_revoked_a_registry_should_succeed() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob.clone()),
@@ -783,7 +758,6 @@ fn reinstating_an_non_revoked_a_registry_should_fail() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob.clone()),
@@ -833,7 +807,6 @@ fn archiving_a_registry_should_succeed() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob.clone()),
@@ -881,7 +854,6 @@ fn restoring_an_archived_a_registry_should_succeed() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob.clone()),
@@ -941,7 +913,6 @@ fn restoring_an_non_archived_a_registry_should_fail() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob.clone()),
@@ -986,7 +957,6 @@ fn registry_delegation_should_fail_if_registry_delegates_limit_exceeded() {
 		// Create the Registries
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob.clone()),
@@ -1057,7 +1027,6 @@ fn remove_delegate_should_succeed() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob.clone()),
@@ -1113,7 +1082,6 @@ fn remove_delegate_should_fail_for_creator_removing_themselves() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob.clone()),
@@ -1177,7 +1145,6 @@ fn update_registry_should_succeed() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(initial_blob),
@@ -1245,7 +1212,6 @@ fn add_delegate_should_fail_if_registry_delegates_limit_exceeded() {
 		// Create the Registries
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob.clone()),
@@ -1315,7 +1281,6 @@ fn add_admin_delegate_should_fail_if_registry_delegates_limit_exceeded() {
 		// Create the Registries
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob.clone()),
@@ -1385,7 +1350,6 @@ fn add_delegator_should_fail_if_registry_delegates_limit_exceeded() {
 		// Create the Registries
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob.clone()),

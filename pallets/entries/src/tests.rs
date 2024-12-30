@@ -95,7 +95,6 @@ fn create_registry_entry_should_work() {
 		/* Test creation of a Registry */
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob),
@@ -206,7 +205,6 @@ fn update_registry_entry_should_work() {
 		/* Test creation of a Registry */
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob),
@@ -358,7 +356,6 @@ fn revoke_registry_entry_should_work() {
 		/* Test creation of a Registry */
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob),
@@ -471,7 +468,6 @@ fn reinstating_revoked_registry_entry_should_work() {
 		/* Test creation of a Registry */
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob),
@@ -605,7 +601,6 @@ fn update_registry_entry_should_work_for_valid_creator() {
 		/* Test creation of a Registry */
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(admin.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob),
@@ -766,7 +761,6 @@ fn update_registry_entry_should_work_for_valid_admin() {
 		/* Test creation of a Registry */
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob),
@@ -935,7 +929,6 @@ fn update_registry_entry_should_fail_for_non_registry_entry_creator() {
 		/* Test creation of a Registry */
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(admin.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob),
@@ -1117,7 +1110,6 @@ fn update_registry_entry_should_fail_for_non_registry_admin() {
 		/* Test creation of a Registry */
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(admin.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id.clone()),
 			Some(blob.clone()),
@@ -1133,7 +1125,6 @@ fn update_registry_entry_should_fail_for_non_registry_admin() {
 
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(invalid_admin.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob),
@@ -1289,7 +1280,6 @@ fn update_ownership_of_registry_entry_creator_should_work_for_creator() {
 		/* Test creation of a Registry */
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(admin.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob),
@@ -1452,7 +1442,6 @@ fn update_ownership_of_registry_entry_creator_should_work_for_admin() {
 		/* Test creation of a Registry */
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(admin.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob),
@@ -1615,7 +1604,6 @@ fn new_owner_should_be_able_to_perform_registry_entry_operations_after_ownership
 		/* Test creation of a Registry */
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(admin.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob),
@@ -1830,7 +1818,6 @@ fn old_owner_should_not_be_able_to_perform_registry_entry_operations_after_owner
 		/* Test creation of a Registry */
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(admin.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob),
@@ -2033,7 +2020,6 @@ fn update_ownership_should_fail_for_updating_themselves() {
 		/* Test creation of a Registry */
 		assert_ok!(Registries::create(
 			frame_system::RawOrigin::Signed(admin.clone()).into(),
-			registry_id.clone(),
 			registry_digest,
 			Some(schema_id),
 			Some(blob),

@@ -74,7 +74,6 @@ benchmarks! {
 
 			Pallet::<T>::create(
 				RawOrigin::Signed(creator.clone()).into(),
-				registry_id.clone(),
 				registry_digest,
 				Some(schema_id.clone()),
 				Some(blob),
@@ -135,7 +134,6 @@ benchmarks! {
 
 			Pallet::<T>::create(
 				RawOrigin::Signed(creator.clone()).into(),
-				registry_id.clone(),
 				registry_digest,
 				Some(schema_id.clone()),
 				Some(blob),
@@ -194,7 +192,6 @@ benchmarks! {
 
 			Pallet::<T>::create(
 				RawOrigin::Signed(creator.clone()).into(),
-				registry_id.clone(),
 				registry_digest,
 				Some(schema_id.clone()),
 				Some(blob),
@@ -255,7 +252,6 @@ benchmarks! {
 
 			Pallet::<T>::create(
 				RawOrigin::Signed(creator.clone()).into(),
-				registry_id.clone(),
 				registry_digest,
 				Some(schema_id.clone()),
 				Some(blob),
@@ -315,7 +311,6 @@ benchmarks! {
 
 		}: _<T::RuntimeOrigin>(
 				RawOrigin::Signed(creator.clone()).into(),
-				registry_id.clone(),
 				registry_digest,
 				Some(schema_id.clone()),
 				Some(blob)
@@ -369,7 +364,6 @@ benchmarks! {
 
 			Pallet::<T>::create(
 				RawOrigin::Signed(creator.clone()).into(),
-				registry_id.clone(),
 				registry_digest,
 				Some(schema_id.clone()),
 				Some(blob),
@@ -424,7 +418,6 @@ benchmarks! {
 
 			Pallet::<T>::create(
 				RawOrigin::Signed(creator.clone()).into(),
-				registry_id.clone(),
 				registry_digest,
 				Some(schema_id.clone()),
 				Some(blob),
@@ -476,7 +469,6 @@ benchmarks! {
 
 			Pallet::<T>::create(
 				RawOrigin::Signed(creator.clone()).into(),
-				registry_id.clone(),
 				registry_digest,
 				Some(schema_id.clone()),
 				Some(blob),
@@ -534,7 +526,6 @@ benchmarks! {
 
 			Pallet::<T>::create(
 				RawOrigin::Signed(creator.clone()).into(),
-				registry_id.clone(),
 				registry_digest,
 				Some(schema_id.clone()),
 				Some(blob),
@@ -586,7 +577,6 @@ benchmarks! {
 
 			Pallet::<T>::create(
 				RawOrigin::Signed(creator.clone()).into(),
-				registry_id.clone(),
 				registry_digest,
 				Some(schema_id.clone()),
 				Some(blob),
