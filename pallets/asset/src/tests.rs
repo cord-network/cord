@@ -3057,3 +3057,56 @@ fn asset_vc_status_change_with_wrong_asset_id_should_fail() {
 		);
 	});
 }
+
+#[test]
+fn asset_create_should_fail_with_invalid_asset_type() {
+	let creator = DID_00;
+	let author = ACCOUNT_00;
+	let capacity = 5u64;
+	let raw_space = [2u8; 256].to_vec();
+	let space_digest = <Test as frame_system::Config>::Hashing::hash(&raw_space.encode()[..]);
+	let space_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&space_digest.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let space_id: SpaceIdOf = generate_space_id::<Test>(&space_id_digest);
+
+	let auth_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&space_id.encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let authorization_id: Ss58Identifier = generate_authorization_id::<Test>(&auth_digest);
+
+	new_test_ext().execute_with(|| {
+		assert_ok!(Space::create(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			space_digest
+		));
+
+		assert_ok!(Space::approve(RawOrigin::Root.into(), space_id, capacity));
+
+		// Create an invalid asset type
+		let invalid_type = AssetTypeOf::INVALID;
+
+		println!("Invalid type being tested: {:?}", invalid_type);
+		let invalid_entry = AssetInputEntryOf::<Test> {
+			asset_desc: BoundedVec::try_from([72u8; 10].to_vec()).unwrap(),
+			asset_tag: BoundedVec::try_from([72u8; 10].to_vec()).unwrap(),
+			asset_meta: BoundedVec::try_from([72u8; 10].to_vec()).unwrap(),
+			asset_qty: 10,
+			asset_value: 10,
+			asset_type: invalid_type,
+		};
+
+		let invalid_digest =
+			<Test as frame_system::Config>::Hashing::hash(&invalid_entry.encode()[..]);
+
+		assert_err!(
+			Asset::create(
+				DoubleOrigin(author, creator).into(),
+				invalid_entry,
+				invalid_digest,
+				authorization_id
+			),
+			Error::<Test>::InvalidAssetType
+		);
+	});
+}

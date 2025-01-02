@@ -46,6 +46,7 @@ pub enum AssetTypeOf {
 	ART,
 	BOND,
 	MF,
+	INVALID,
 }
 
 #[derive(Encode, Decode, MaxEncodedLen, Clone, RuntimeDebug, PartialEq, Eq, TypeInfo)]
