@@ -2,7 +2,7 @@ use super::*;
 use crate::{mock::*, types::AssetIssuanceEntry, Error};
 use codec::Encode;
 use cord_utilities::mock::{mock_origin::DoubleOrigin, SubjectId};
-use frame_support::{assert_err, assert_noop, assert_ok, BoundedVec};
+use frame_support::{assert_err, assert_ok, BoundedVec};
 use frame_system::RawOrigin;
 use pallet_chain_space::{SpaceCodeOf, SpaceIdOf};
 use sp_runtime::{traits::Hash, AccountId32};
@@ -2923,7 +2923,7 @@ fn asset_issue_should_fail_when_distribution_limit_exceeds() {
 		let exceeding_digest =
 			<Test as frame_system::Config>::Hashing::hash(&exceeding_entry.encode()[..]);
 
-		assert_noop!(
+		assert_err!(
 			Asset::issue(
 				DoubleOrigin(author.clone(), creator.clone()).into(),
 				exceeding_entry,
