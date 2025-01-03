@@ -20,7 +20,6 @@ members = [
 	"pallets/did",
 	"pallets/did-name",
 	"pallets/identity",
-	"pallets/network-authorization",
 	"pallets/network-membership",
 	"pallets/network-score",
 	"pallets/node-authorization",
