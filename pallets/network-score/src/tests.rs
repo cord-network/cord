@@ -26,8 +26,6 @@ use pallet_chain_space::SpaceCodeOf;
 use sp_runtime::{traits::Hash, AccountId32};
 use sp_std::prelude::*;
 
-
-
 pub fn generate_rating_id<T: Config>(digest: &RatingEntryHashOf<T>) -> RatingEntryIdOf {
 	Ss58Identifier::create_identifier(&(digest).encode()[..], IdentifierType::Rating).unwrap()
 }
@@ -921,66 +919,132 @@ fn reference_identifier_not_found_test() {
 
 
 #[test]
-fn check_space_mismatch_errors() {
-    new_test_ext().execute_with(|| {
-        let creator = DID_00;
-        let author = ACCOUNT_00;
-        let message_id = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
-        let entity_id = BoundedVec::try_from([73u8; 10].to_vec()).unwrap();
-        let provider_id = BoundedVec::try_from([74u8; 10].to_vec()).unwrap();
+fn revise_rating_with_space_mismatch_should_fail() {
+	let creator = DID_00.clone();
+	let author = ACCOUNT_00.clone();
 
-        let entry = RatingInputEntryOf::<Test> {
-            entity_id: entity_id.clone(),
-            provider_id: provider_id.clone(),
-            total_encoded_rating: 250u64,
-            count_of_txn: 7u64,
-            rating_type: RatingTypeOf::Overall,
-            provider_did: creator.clone(),
-        };
+	let message_id = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
+	let entity_id = BoundedVec::try_from([73u8; 10].to_vec()).unwrap();
+	let provider_id = BoundedVec::try_from([74u8; 10].to_vec()).unwrap();
 
-        let entry_digest = <Test as frame_system::Config>::Hashing::hash(
-            &[&entry.encode()[..]].concat()[..],
-        );
+	// Valid rating entry
+	let entry = RatingInputEntryOf::<Test> {
+		entity_id: entity_id.clone(),
+		provider_id: provider_id.clone(),
+		total_encoded_rating: 250u64,
+		count_of_txn: 7u64,
+		rating_type: RatingTypeOf::Overall,
+		provider_did: creator.clone(),
+	};
 
-        // Create first space
-        let raw_space = [2u8; 256].to_vec();
-        let space_digest = <Test as frame_system::Config>::Hashing::hash(&raw_space.encode()[..]);
-        let space_id_digest = <Test as frame_system::Config>::Hashing::hash(
-            &[&space_digest.encode()[..], &creator.encode()[..]].concat()[..],
-        );
-        let space_id: SpaceIdOf = generate_space_id::<Test>(&space_id_digest);
+	let entry_digest =
+		<Test as frame_system::Config>::Hashing::hash(&[&entry.encode()[..]].concat()[..]);
 
-        // Create invalid authorization
-        let invalid_auth_digest = <Test as frame_system::Config>::Hashing::hash(
-            &[&[1u8; 32].to_vec().encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()[..],
-        );
-        let invalid_authorization_id: AuthorizationIdOf = 
-            Ss58Identifier::create_identifier(&invalid_auth_digest.encode()[..], IdentifierType::Authorization)
-            .unwrap();
+	// Create "main" space:
+	let raw_space = [2u8; 256].to_vec();
+	let space_digest = <Test as frame_system::Config>::Hashing::hash(&raw_space.encode()[..]);
+	let space_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[
+			&space_digest.encode()[..],
+			&creator.encode()[..]
+		].concat()[..],
+	);
+	let space_id: SpaceIdOf = generate_space_id::<Test>(&space_id_digest);
 
-        // Create space
-        assert_ok!(Space::create(
-            DoubleOrigin(author.clone(), creator.clone()).into(),
-            space_digest,
-        ));
-        assert_ok!(Space::approve(RawOrigin::Root.into(), space_id, 3u64));
+	// Create "mismatch" space:
+	let mismatch_raw_space = [3u8; 256].to_vec();
+	let mismatch_space_digest =
+		<Test as frame_system::Config>::Hashing::hash(&mismatch_raw_space.encode()[..]);
+	let mismatch_space_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[
+			&mismatch_space_digest.encode()[..],
+			&creator.encode()[..]
+		].concat()[..],
+	);
+	let mismatch_space_id: SpaceIdOf = generate_space_id::<Test>(&mismatch_space_id_digest);
 
-        // Test register_rating with invalid authorization
-        assert_err!(
-            Score::register_rating(
-                DoubleOrigin(author.clone(), creator.clone()).into(),
-                entry.clone(),
-                entry_digest,
-                message_id.clone(),
-                invalid_authorization_id
-            ),
-            pallet_chain_space::Error::<Test>::AuthorizationNotFound
-        );
-    });
+	// Auth ID for main space
+	let auth_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[
+			&space_id.encode()[..],
+			&creator.encode()[..],
+			&creator.encode()[..]
+		].concat()[..],
+	);
+	let authorization_id: AuthorizationIdOf = Ss58Identifier::create_identifier(
+		&auth_digest.encode()[..],
+		IdentifierType::Authorization
+	).unwrap();
+
+	// Auth ID for mismatch space
+	let mismatch_auth_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[
+			&mismatch_space_id.encode()[..],
+			&creator.encode()[..],
+			&creator.encode()[..]
+		].concat()[..],
+	);
+	let mismatch_authorization_id: AuthorizationIdOf = Ss58Identifier::create_identifier(
+		&mismatch_auth_digest.encode()[..],
+		IdentifierType::Authorization
+	).unwrap();
+
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		// Create & approve main space
+		assert_ok!(Space::create(DoubleOrigin(author.clone(), creator.clone()).into(), space_digest));
+		assert_ok!(Space::approve(RawOrigin::Root.into(), space_id, 3u64));
+
+		// Register a 'credit' rating in main space
+		assert_ok!(Score::register_rating(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			entry.clone(),
+			entry_digest,
+			message_id.clone(),
+			authorization_id.clone(),
+		));
+
+		// Create & approve mismatch space
+		assert_ok!(Space::create(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			mismatch_space_digest
+		));
+		assert_ok!(Space::approve(RawOrigin::Root.into(), mismatch_space_id, 3u64));
+
+		// Revoke the original rating to produce a 'debit' entry
+		let revoke_msg_id = BoundedVec::try_from([80u8; 10].to_vec()).unwrap();
+		let revoke_digest =
+			<Test as frame_system::Config>::Hashing::hash(&[50u8; 16].to_vec()[..]);
+		let orig_rating_id = <MessageIdentifiers<Test>>::get(&message_id, &creator).unwrap();
+
+		assert_ok!(Score::revoke_rating(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			orig_rating_id.clone(),
+			revoke_msg_id.clone(),
+			revoke_digest,
+			authorization_id.clone(),
+		));
+
+		// Attempt to revise using the mismatch space
+		let mismatch_msg_id = BoundedVec::try_from([88u8; 10].to_vec()).unwrap();
+		let mismatch_digest =
+			<Test as frame_system::Config>::Hashing::hash(&[90u8; 16].to_vec()[..]);
+
+		// This call should fail with SpaceMismatch, because the rating was made in 'space_id',
+		// but we pass 'mismatch_authorization_id' that points to 'mismatch_space_id'.
+		assert_err!(
+			Score::revise_rating(
+				DoubleOrigin(author.clone(), creator.clone()).into(),
+				entry.clone(),
+				mismatch_digest,
+				mismatch_msg_id,
+				orig_rating_id.clone(),
+				mismatch_authorization_id,
+			),
+			Error::<Test>::SpaceMismatch
+		);
+	});
 }
-
-
-
-
 
 
