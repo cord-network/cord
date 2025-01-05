@@ -895,6 +895,18 @@ impl pallet_chain_space::Config for Runtime {
 }
 
 parameter_types! {
+	pub const MaxNameSpaceDelegates: u32 = 10_000;
+}
+
+impl pallet_namespace::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type ChainSpaceOrigin = EnsureRoot<AccountId>;
+	type NetworkPermission = NetworkParameters;
+	type MaxNameSpaceDelegates = MaxNameSpaceDelegates;
+	type WeightInfo = ();
+}
+
+parameter_types! {
 	pub const MaxRegistryBlobSize: u32 = 4 * 1024;
 	pub const MaxEncodedInputLength: u32 = 30;
 	pub const MaxRegistryDelegates: u32 = 10_000;
@@ -1156,6 +1168,9 @@ mod runtime {
 
 	#[runtime::pallet_index(63)]
 	pub type SchemaAccounts = pallet_schema_accounts;
+
+	#[runtime::pallet_index(64)]
+	pub type NameSpace = pallet_namespace;
 
 	#[runtime::pallet_index(254)]
 	pub type RootTesting = pallet_root_testing;
