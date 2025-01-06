@@ -915,3 +915,30 @@ fn reference_identifier_not_found_test() {
 		<MessageIdentifiers<Test>>::remove(message_id_revise.clone(), creator.clone());
 	});
 }
+
+
+
+#[test]
+fn test_unauthorized_operation() {
+    new_test_ext().execute_with(|| {
+        run_to_block(1);
+
+        let non_member = AccountId::new([14u8; 32]);
+
+        assert_err!(
+            NetworkMembership::nominate(
+                RuntimeOrigin::signed(non_member),
+                AccountId::new([13u8; 32]),
+                true
+            ),
+            BadOrigin
+        );
+
+        assert_eq!(NetworkMembership::members_count(), 1);
+
+        assert_eq!(
+            Members::<Test>::get(AccountId::new([13u8; 32])),
+            None
+        );
+    });
+}

@@ -835,3 +835,92 @@ impl<T: Config> Pallet<T> {
 		pallet_timestamp::Pallet::<T>::get()
 	}
 }
+
+
+
+#![cfg_attr(not(feature = "std"), no_std)]
+
+pub use pallet::*;
+
+#[frame_support::pallet]
+pub mod pallet {
+    use frame_support::{dispatch::DispatchResult, pallet_prelude::*};
+    use frame_system::pallet_prelude::*;
+
+    #[pallet::pallet]
+    #[pallet::generate_store(pub(super) trait Store)]
+    pub struct Pallet<T>(_);
+
+    #[pallet::config]
+    pub trait Config: frame_system::Config {
+        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+    }
+
+    #[pallet::storage]
+    #[pallet::getter(fn members)]
+    pub type Members<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, ()>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn members_count)]
+    pub type MembersCount<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    #[pallet::genesis_config]
+    pub struct GenesisConfig<T: Config> {
+        pub initial_members: Vec<T::AccountId>,
+    }
+
+    #[cfg(feature = "std")]
+    impl<T: Config> Default for GenesisConfig<T> {
+        fn default() -> Self {
+            Self { initial_members: Vec::new() }
+        }
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+        fn build(&self) {
+            for member in &self.initial_members {
+                Members::<T>::insert(member, ());
+            }
+            MembersCount::<T>::put(self.initial_members.len() as u32);
+        }
+    }
+
+    #[pallet::event]
+    #[pallet::generate_deposit(pub(super) fn deposit_event)]
+    pub enum Event<T: Config> {
+        MemberAdded(T::AccountId),
+        MemberRemoved(T::AccountId),
+    }
+
+    #[pallet::error]
+    pub enum Error<T> {
+        NotAuthorized,
+    }
+
+    #[pallet::call]
+    impl<T: Config> Pallet<T> {
+        #[pallet::weight(10_000)]
+        pub fn nominate(
+            origin: OriginFor<T>,
+            account: T::AccountId,
+            add_member: bool,
+        ) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+
+            ensure!(Members::<T>::contains_key(&sender), Error::<T>::NotAuthorized);
+
+            if add_member {
+                Members::<T>::insert(&account, ());
+                MembersCount::<T>::mutate(|count| *count += 1);
+                Self::deposit_event(Event::MemberAdded(account));
+            } else {
+                Members::<T>::remove(&account);
+                MembersCount::<T>::mutate(|count| *count -= 1);
+                Self::deposit_event(Event::MemberRemoved(account));
+            }
+
+            Ok(())
+        }
+    }
+}
