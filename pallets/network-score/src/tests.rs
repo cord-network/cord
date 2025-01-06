@@ -916,8 +916,6 @@ fn reference_identifier_not_found_test() {
 	});
 }
 
-
-
 #[test]
 fn revise_rating_with_space_mismatch_should_fail() {
 	let creator = DID_00.clone();
@@ -944,10 +942,7 @@ fn revise_rating_with_space_mismatch_should_fail() {
 	let raw_space = [2u8; 256].to_vec();
 	let space_digest = <Test as frame_system::Config>::Hashing::hash(&raw_space.encode()[..]);
 	let space_id_digest = <Test as frame_system::Config>::Hashing::hash(
-		&[
-			&space_digest.encode()[..],
-			&creator.encode()[..]
-		].concat()[..],
+		&[&space_digest.encode()[..], &creator.encode()[..]].concat()[..],
 	);
 	let space_id: SpaceIdOf = generate_space_id::<Test>(&space_id_digest);
 
@@ -956,44 +951,36 @@ fn revise_rating_with_space_mismatch_should_fail() {
 	let mismatch_space_digest =
 		<Test as frame_system::Config>::Hashing::hash(&mismatch_raw_space.encode()[..]);
 	let mismatch_space_id_digest = <Test as frame_system::Config>::Hashing::hash(
-		&[
-			&mismatch_space_digest.encode()[..],
-			&creator.encode()[..]
-		].concat()[..],
+		&[&mismatch_space_digest.encode()[..], &creator.encode()[..]].concat()[..],
 	);
 	let mismatch_space_id: SpaceIdOf = generate_space_id::<Test>(&mismatch_space_id_digest);
 
 	// Auth ID for main space
 	let auth_digest = <Test as frame_system::Config>::Hashing::hash(
-		&[
-			&space_id.encode()[..],
-			&creator.encode()[..],
-			&creator.encode()[..]
-		].concat()[..],
+		&[&space_id.encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()[..],
 	);
-	let authorization_id: AuthorizationIdOf = Ss58Identifier::create_identifier(
-		&auth_digest.encode()[..],
-		IdentifierType::Authorization
-	).unwrap();
+	let authorization_id: AuthorizationIdOf =
+		Ss58Identifier::create_identifier(&auth_digest.encode()[..], IdentifierType::Authorization)
+			.unwrap();
 
 	// Auth ID for mismatch space
 	let mismatch_auth_digest = <Test as frame_system::Config>::Hashing::hash(
-		&[
-			&mismatch_space_id.encode()[..],
-			&creator.encode()[..],
-			&creator.encode()[..]
-		].concat()[..],
+		&[&mismatch_space_id.encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()[..],
 	);
 	let mismatch_authorization_id: AuthorizationIdOf = Ss58Identifier::create_identifier(
 		&mismatch_auth_digest.encode()[..],
-		IdentifierType::Authorization
-	).unwrap();
+		IdentifierType::Authorization,
+	)
+	.unwrap();
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 
 		// Create & approve main space
-		assert_ok!(Space::create(DoubleOrigin(author.clone(), creator.clone()).into(), space_digest));
+		assert_ok!(Space::create(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			space_digest
+		));
 		assert_ok!(Space::approve(RawOrigin::Root.into(), space_id, 3u64));
 
 		// Register a 'credit' rating in main space
@@ -1014,8 +1001,7 @@ fn revise_rating_with_space_mismatch_should_fail() {
 
 		// Revoke the original rating to produce a 'debit' entry
 		let revoke_msg_id = BoundedVec::try_from([80u8; 10].to_vec()).unwrap();
-		let revoke_digest =
-			<Test as frame_system::Config>::Hashing::hash(&[50u8; 16].to_vec()[..]);
+		let revoke_digest = <Test as frame_system::Config>::Hashing::hash(&[50u8; 16].to_vec()[..]);
 		let orig_rating_id = <MessageIdentifiers<Test>>::get(&message_id, &creator).unwrap();
 
 		assert_ok!(Score::revoke_rating(
@@ -1046,5 +1032,3 @@ fn revise_rating_with_space_mismatch_should_fail() {
 		);
 	});
 }
-
-
