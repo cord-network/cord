@@ -83,9 +83,6 @@ impl Default for Permissions {
 pub struct NameSpaceDetails<NameSpaceCodeOf, NameSpaceCreatorOf, StatusOf, NameSpaceIdOf> {
 	pub code: NameSpaceCodeOf,
 	pub creator: NameSpaceCreatorOf,
-	pub txn_capacity: u64,
-	pub txn_reserve: u64,
-	pub txn_count: u64,
 	pub approved: StatusOf,
 	pub archive: StatusOf,
 	pub parent: NameSpaceIdOf,

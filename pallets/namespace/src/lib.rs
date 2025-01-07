@@ -474,8 +474,6 @@ pub mod pallet {
 
 				Authorizations::<T>::remove(&remove_authorization);
 
-				Self::decrement_usage(&namespace_id).map_err(Error::<T>::from)?;
-
 				Self::update_activity(
 					&namespace_id,
 					IdentifierTypeOf::Auth,
@@ -583,9 +581,6 @@ pub mod pallet {
 				NameSpaceDetailsOf::<T> {
 					code: namespace_code,
 					creator: creator.clone(),
-					txn_capacity: 0, // TODO: Remove capacities here
-					txn_reserve: 0,
-					txn_count: 0,
 					approved,
 					archive: false,
 					parent: identifier.clone(),
@@ -643,11 +638,7 @@ pub mod pallet {
 		/// implications.
 		#[pallet::call_index(5)]
 		#[pallet::weight({0})]
-		pub fn approve(
-			origin: OriginFor<T>,
-			namespace_id: NameSpaceIdOf,
-			txn_capacity: u64,
-		) -> DispatchResult {
+		pub fn approve(origin: OriginFor<T>, namespace_id: NameSpaceIdOf) -> DispatchResult {
 			// TODO: Below should be root
 			let _creator = ensure_signed(origin)?;
 
@@ -658,7 +649,7 @@ pub mod pallet {
 
 			<NameSpaces<T>>::insert(
 				&namespace_id,
-				NameSpaceDetailsOf::<T> { txn_capacity, approved: true, ..namespace_details },
+				NameSpaceDetailsOf::<T> { approved: true, ..namespace_details },
 			);
 
 			// TODO: Add Namespace in Identifier types and update all activities.
@@ -801,145 +792,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Updates the transaction capacity of an existing namespace.
-		///
-		/// This extrinsic updates the capacity limit of a namespace, ensuring that
-		/// the new limit is not less than the current usage to prevent
-		/// over-allocation. It can only be called by an authorized origin and
-		/// not on archived or unapproved namespaces.
-		///
-		/// # Arguments
-		/// * `origin` - The origin of the call, which must be from an authorized source.
-		/// * `namespace_id` - The identifier of the namespace for which the capacity is being
-		///   updated.
-		/// * `new_txn_capacity` - The new capacity limit to be set for the namespace.
-		///
-		/// # Errors
-		/// * `NameSpaceNotFound` - If the namespace with the given ID does not exist.
-		/// * `ArchivedNameSpace` - If the namespace is archived and thus cannot be modified.
-		/// * `NameSpaceNotApproved` - If the namespace has not been approved for use yet.
-		/// * `CapacityLessThanUsage` - If the new capacity is less than the current usage of the
-		///   namespace.
-		///
-		/// # Events
-		/// * `UpdateCapacity` - Emits the namespace ID when the capacity is successfully updated.
-		#[pallet::call_index(8)]
-		#[pallet::weight({0})]
-		pub fn update_transaction_capacity(
-			origin: OriginFor<T>,
-			namespace_id: NameSpaceIdOf,
-			new_txn_capacity: u64,
-		) -> DispatchResult {
-			// TOOD: Make below as root
-			let _creator = ensure_signed(origin)?;
-			let namespace_details =
-				NameSpaces::<T>::get(&namespace_id).ok_or(Error::<T>::NameSpaceNotFound)?;
-			ensure!(!namespace_details.archive, Error::<T>::ArchivedNameSpace);
-			ensure!(namespace_details.approved, Error::<T>::NameSpaceNotApproved);
-
-			// Ensure the new capacity is greater than the current usage
-			ensure!(
-				new_txn_capacity >= (namespace_details.txn_count + namespace_details.txn_reserve),
-				Error::<T>::CapacityLessThanUsage
-			);
-
-			if namespace_id.clone() != namespace_details.parent.clone() {
-				let parent_details = NameSpaces::<T>::get(&namespace_details.parent.clone())
-					.ok_or(Error::<T>::NameSpaceNotFound)?;
-
-				// Ensure the new capacity is greater than the current usage
-				ensure!(
-					(parent_details.txn_capacity >=
-						(parent_details.txn_count +
-							parent_details.txn_reserve +
-							new_txn_capacity - namespace_details.txn_capacity)),
-					Error::<T>::CapacityLessThanUsage
-				);
-
-				<NameSpaces<T>>::insert(
-					&namespace_details.parent.clone(),
-					NameSpaceDetailsOf::<T> {
-						txn_reserve: parent_details.txn_reserve - namespace_details.txn_capacity +
-							new_txn_capacity,
-						..parent_details.clone()
-					},
-				);
-			}
-
-			<NameSpaces<T>>::insert(
-				&namespace_id,
-				NameSpaceDetailsOf::<T> { txn_capacity: new_txn_capacity, ..namespace_details },
-			);
-
-			Self::update_activity(
-				&namespace_id,
-				IdentifierTypeOf::ChainSpace,
-				CallTypeOf::Capacity,
-			)
-			.map_err(Error::<T>::from)?;
-
-			Self::deposit_event(Event::UpdateCapacity { namespace: namespace_id });
-
-			Ok(())
-		}
-
-		/// Resets the usage counter of a specified namespace to zero.
-		///
-		/// This function can only be called by an authorized origin
-		/// and is used to reset the usage metrics for a given namespace on the chain,
-		/// identified by `namespace_id`. The reset action is only permissible
-		/// if the namespace exists, is not archived, and is approved for operations.
-		///
-		/// # Parameters
-		/// - `origin`: The transaction's origin, which must pass the `ChainSpaceOrigin` check.
-		/// - `namespace_id`: The identifier of the namespace for which the usage counter will be
-		///   reset.
-		///
-		/// # Errors
-		/// - Returns `NameSpaceNotFound` if the specified `namespace_id` does not correspond to any
-		///   existing namespace.
-		/// - Returns `ArchivedNameSpace` if the namespace is archived and thus cannot be modified.
-		/// - Returns `NameSpaceNotApproved` if the namespace is not approved for operations.
-		///
-		/// # Events
-		/// - Emits `UpdateCapacity` upon successfully resetting the namespace's usage counter.
-		#[pallet::call_index(9)]
-		#[pallet::weight({0})]
-		pub fn reset_transaction_count(
-			origin: OriginFor<T>,
-			namespace_id: NameSpaceIdOf,
-		) -> DispatchResult {
-			let namespace_details =
-				NameSpaces::<T>::get(&namespace_id).ok_or(Error::<T>::NameSpaceNotFound)?;
-			ensure!(!namespace_details.archive, Error::<T>::ArchivedNameSpace);
-			ensure!(namespace_details.approved, Error::<T>::NameSpaceNotApproved);
-
-			if namespace_id.clone() != namespace_details.parent.clone() {
-				let creator = ensure_signed(origin)?;
-
-				let parent_details = NameSpaces::<T>::get(&namespace_details.parent.clone())
-					.ok_or(Error::<T>::NameSpaceNotFound)?;
-				ensure!(
-					parent_details.creator.clone() == creator,
-					Error::<T>::UnauthorizedOperation
-				);
-			} else {
-				T::ChainSpaceOrigin::ensure_origin(origin)?;
-			}
-
-			<NameSpaces<T>>::insert(
-				&namespace_id,
-				NameSpaceDetailsOf::<T> { txn_count: 0, ..namespace_details },
-			);
-
-			Self::update_activity(&namespace_id, IdentifierTypeOf::ChainSpace, CallTypeOf::Usage)
-				.map_err(Error::<T>::from)?;
-
-			Self::deposit_event(Event::ResetUsage { namespace: namespace_id });
-
-			Ok(())
-		}
-
 		/// Revokes approval for a specified namespace.
 		///
 		/// This function can be executed by an authorized origin, as determined
@@ -1017,251 +869,6 @@ pub mod pallet {
 			.map_err(Error::<T>::from)?;
 
 			Self::deposit_event(Event::ApprovalRestore { namespace: namespace_id });
-
-			Ok(())
-		}
-
-		// TODO: Rename this to create_registry
-		/// Creates a new namespace with a unique identifier based on the provided
-		/// namespace code and the creator's identity, along with parent namespace ID.
-		///
-		/// This function generates a unique identifier for the namespace by hashing
-		/// the encoded namespace code and creator's identifier. It ensures that the
-		/// generated namespace identifier is not already in use. An authorization
-		/// ID is also created for the new namespace, which is used to manage
-		/// delegations. The creator is automatically added as a delegate with
-		/// all permissions.
-		/// NOTE: this call is different from create() in just 1 main step. This
-		/// namespace can be created from the already 'approved' namespace, as a
-		/// 'namespace-approval' is a council activity, instead in this case, its
-		/// owner/creator's task. Thus reducing the involvement of council once
-		/// the top level approval is present.
-		///
-		/// # Parameters
-		/// - `origin`: The origin of the transaction, which must be signed by the creator.
-		/// - `namespace_code`: A unique code representing the namespace to be created.
-		/// - `count`: Number of approved transaction capacity in the sub-namespace.
-		/// - `namespace_id`: Identifier of the parent namespace.
-		///
-		/// # Returns
-		/// - `DispatchResult`: Returns `Ok(())` if the namespace is successfully created, or an
-		///   error (`DispatchError`) if:
-		///   - The generated namespace identifier is already in use.
-		///   - The generated authorization ID is of invalid length.
-		///   - The namespace delegates limit is exceeded.
-		///
-		/// # Errors
-		/// - `InvalidIdentifierLength`: If the generated identifiers for the namespace or
-		///   authorization are of invalid length.
-		/// - `NameSpaceAlreadyAnchored`: If the namespace identifier is already in use.
-		/// - `NameSpaceDelegatesLimitExceeded`: If the namespace exceeds the limit of allowed
-		///   delegates.
-		///
-		/// # Events
-		/// - `Create`: Emitted when a new namespace is successfully created. It includes the
-		///   namespace identifier, the creator's identifier, and the authorization ID.
-		#[pallet::call_index(12)]
-		#[pallet::weight({0})]
-		pub fn create_registry(
-			origin: OriginFor<T>,
-			namespace_code: NameSpaceCodeOf<T>, //Registry Code, not required in registry usecase
-			count: Option<u64>,
-			namespace_id: NameSpaceIdOf,
-		) -> DispatchResult {
-			let creator = ensure_signed(origin)?;
-
-			let namespace_details =
-				NameSpaces::<T>::get(&namespace_id).ok_or(Error::<T>::NameSpaceNotFound)?;
-			ensure!(!namespace_details.archive, Error::<T>::ArchivedNameSpace);
-			ensure!(namespace_details.approved, Error::<T>::NameSpaceNotApproved);
-			ensure!(
-				namespace_details.creator == creator.clone(),
-				Error::<T>::UnauthorizedOperation
-			);
-
-			// Check if the network is permissioned
-			let is_permissioned = T::NetworkPermission::is_permissioned();
-
-			// Ensure count is provided for permissioned networks, else set default for
-			// permissionless
-			let count = match count {
-				Some(value) => value,
-				None if is_permissioned => return Err(Error::<T>::CapacityValueMissing.into()),
-				None => 0,
-			};
-
-			// Ensure the new capacity is greater than the current usage
-			ensure!(
-				count <=
-					(namespace_details.txn_capacity -
-						(namespace_details.txn_count + namespace_details.txn_reserve)),
-				Error::<T>::CapacityLimitExceeded
-			);
-
-			// Id Digest = concat (H(<scale_encoded_registry_input>,
-			// <scale_encoded_creator_identifier>))
-			let id_digest = <T as frame_system::Config>::Hashing::hash(
-				&[&namespace_code.encode()[..], &creator.encode()[..]].concat()[..],
-			);
-
-			let identifier =
-				Ss58Identifier::create_identifier(&id_digest.encode()[..], IdentifierType::Space)
-					.map_err(|_| Error::<T>::InvalidIdentifierLength)?;
-
-			ensure!(
-				!<NameSpaces<T>>::contains_key(&identifier),
-				Error::<T>::NameSpaceAlreadyAnchored
-			);
-
-			// Construct the authorization_id from the provided parameters.
-			// Id Digest = concat (H(<scale_encoded_space_identifier>,
-			// <scale_encoded_creator_identifier> ))
-			let auth_id_digest = T::Hashing::hash(
-				&[&identifier.encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()
-					[..],
-			);
-
-			let authorization_id = Ss58Identifier::create_identifier(
-				&auth_id_digest.encode(),
-				IdentifierType::Authorization,
-			)
-			.map_err(|_| Error::<T>::InvalidIdentifierLength)?;
-
-			let mut delegates: BoundedVec<NameSpaceCreatorOf<T>, T::MaxNameSpaceDelegates> =
-				BoundedVec::default();
-			delegates
-				.try_push(creator.clone())
-				.map_err(|_| Error::<T>::NameSpaceDelegatesLimitExceeded)?;
-
-			Delegates::<T>::insert(&identifier, delegates);
-
-			Authorizations::<T>::insert(
-				&authorization_id,
-				NameSpaceAuthorizationOf::<T> {
-					namespace_id: identifier.clone(),
-					delegate: creator.clone(),
-					permissions: Permissions::all(),
-					delegator: creator.clone(),
-				},
-			);
-
-			/* Update the parent namespace with added count */
-			<NameSpaces<T>>::insert(
-				&namespace_id.clone(),
-				NameSpaceDetailsOf::<T> {
-					txn_count: namespace_details.txn_count + 1,
-					txn_reserve: namespace_details.txn_reserve + count,
-					..namespace_details
-				},
-			);
-			<NameSpaces<T>>::insert(
-				&identifier,
-				NameSpaceDetailsOf::<T> {
-					code: namespace_code,
-					creator: creator.clone(),
-					txn_capacity: count,
-					txn_reserve: 0,
-					txn_count: 0,
-					approved: true,
-					archive: false,
-					parent: namespace_id,
-				},
-			);
-
-			Self::update_activity(&identifier, IdentifierTypeOf::ChainSpace, CallTypeOf::Genesis)
-				.map_err(Error::<T>::from)?;
-
-			Self::deposit_event(Event::Create {
-				namespace: identifier,
-				creator,
-				authorization: authorization_id,
-			});
-
-			Ok(())
-		}
-
-		// TODO: Change this to registry related names.
-		/// Updates the transaction capacity of an existing subspace.
-		///
-		/// This extrinsic updates the capacity limit of a namespace, ensuring that
-		/// the new limit is not less than the current usage to prevent
-		/// over-allocation. It can only be called by an authorized origin and
-		/// not on archived or unapproved namespaces.
-		///
-		/// # Arguments
-		/// * `origin` - The origin of the call, which must be from an authorized source.
-		/// * `namespace_id` - The identifier of the namespace for which the capacity is being
-		///   updated.
-		/// * `new_txn_capacity` - The new capacity limit to be set for the namespace.
-		///
-		/// # Errors
-		/// * `NameSpaceNotFound` - If the namespace with the given ID does not exist.
-		/// * `ArchivedNameSpace` - If the namespace is archived and thus cannot be modified.
-		/// * `NameSpaceNotApproved` - If the namespace has not been approved for use yet.
-		/// * `CapacityLessThanUsage` - If the new capacity is less than the current usage of the
-		///   namespace.
-		///
-		/// # Events
-		/// * `UpdateCapacity` - Emits the namespace ID when the capacity is successfully updated.
-		#[pallet::call_index(13)]
-		#[pallet::weight({0})]
-		pub fn update_transaction_capacity_sub(
-			origin: OriginFor<T>,
-			namespace_id: NameSpaceIdOf,
-			new_txn_capacity: u64,
-		) -> DispatchResult {
-			let creator = ensure_signed(origin)?;
-			let namespace_details =
-				NameSpaces::<T>::get(&namespace_id).ok_or(Error::<T>::NameSpaceNotFound)?;
-			ensure!(!namespace_details.archive, Error::<T>::ArchivedNameSpace);
-			ensure!(namespace_details.approved, Error::<T>::NameSpaceNotApproved);
-
-			// Ensure the new capacity is greater than the current usage
-			ensure!(
-				new_txn_capacity >= (namespace_details.txn_count + namespace_details.txn_reserve),
-				Error::<T>::CapacityLessThanUsage
-			);
-
-			// If its a top level namespace, then this is unauthorized.
-			ensure!(
-				namespace_details.parent.clone() != namespace_id.clone(),
-				Error::<T>::UnauthorizedOperation
-			);
-
-			let parent_details = NameSpaces::<T>::get(&namespace_details.parent.clone())
-				.ok_or(Error::<T>::NameSpaceNotFound)?;
-			ensure!(parent_details.creator.clone() == creator, Error::<T>::UnauthorizedOperation);
-
-			// Ensure the new capacity is greater than the current usage
-			ensure!(
-				(parent_details.txn_capacity >=
-					(parent_details.txn_count + parent_details.txn_reserve + new_txn_capacity -
-						namespace_details.txn_capacity)),
-				Error::<T>::CapacityLessThanUsage
-			);
-
-			<NameSpaces<T>>::insert(
-				&namespace_details.parent.clone(),
-				NameSpaceDetailsOf::<T> {
-					txn_reserve: parent_details.txn_reserve - namespace_details.txn_capacity +
-						new_txn_capacity,
-					..parent_details.clone()
-				},
-			);
-
-			<NameSpaces<T>>::insert(
-				&namespace_id,
-				NameSpaceDetailsOf::<T> { txn_capacity: new_txn_capacity, ..namespace_details },
-			);
-
-			Self::update_activity(
-				&namespace_id,
-				IdentifierTypeOf::ChainSpace,
-				CallTypeOf::Capacity,
-			)
-			.map_err(Error::<T>::from)?;
-
-			Self::deposit_event(Event::UpdateCapacity { namespace: namespace_id });
 
 			Ok(())
 		}
@@ -1347,8 +954,6 @@ impl<T: Config> Pallet<T> {
 
 		ensure!(d.delegate == *delegate, Error::<T>::UnauthorizedOperation);
 
-		Self::increment_usage(&d.namespace_id)?;
-
 		// TODO: Update all similar function names.
 		Self::validate_space_for_transaction(&d.namespace_id)?;
 
@@ -1365,8 +970,6 @@ impl<T: Config> Pallet<T> {
 			<Authorizations<T>>::get(authorization_id).ok_or(Error::<T>::AuthorizationNotFound)?;
 
 		ensure!(d.delegate == *delegate, Error::<T>::UnauthorizedOperation);
-
-		Self::increment_usage(&d.namespace_id)?;
 
 		Self::validate_space_for_restore_transaction(&d.namespace_id)?;
 
@@ -1390,8 +993,6 @@ impl<T: Config> Pallet<T> {
 
 		ensure!(d.delegate == *delegate, Error::<T>::UnauthorizedOperation);
 
-		Self::increment_usage(&d.namespace_id)?;
-
 		Self::validate_space_for_transaction(&d.namespace_id)?;
 
 		ensure!(d.permissions.contains(Permissions::ADMIN), Error::<T>::UnauthorizedOperation);
@@ -1414,8 +1015,6 @@ impl<T: Config> Pallet<T> {
 			<Authorizations<T>>::get(authorization_id).ok_or(Error::<T>::AuthorizationNotFound)?;
 
 		ensure!(d.delegate == *delegate, Error::<T>::UnauthorizedOperation);
-
-		Self::increment_usage(&d.namespace_id)?;
 
 		Self::validate_space_for_transaction(&d.namespace_id)?;
 
@@ -1465,14 +1064,7 @@ impl<T: Config> Pallet<T> {
 		// Ensure the namespace is approved for transactions.
 		ensure!(namespace_details.approved, Error::<T>::NameSpaceNotApproved);
 
-		// Ensure the namespace has not exceeded its capacity limit.
-		if namespace_details.txn_capacity == 0 ||
-			namespace_details.txn_count < namespace_details.txn_capacity
-		{
-			Ok(())
-		} else {
-			Err(Error::<T>::CapacityLimitExceeded)
-		}
+		Ok(())
 	}
 
 	/// Validates a namespace for restore transactions.
@@ -1493,14 +1085,7 @@ impl<T: Config> Pallet<T> {
 		// Ensure the namespace is approved for transactions.
 		ensure!(namespace_details.approved, Error::<T>::NameSpaceNotApproved);
 
-		// Ensure the namespace has not exceeded its capacity limit.
-		if namespace_details.txn_capacity == 0 ||
-			namespace_details.txn_count < namespace_details.txn_capacity
-		{
-			Ok(())
-		} else {
-			Err(Error::<T>::CapacityLimitExceeded)
-		}
+		Ok(())
 	}
 
 	/// Validates that a namespace can accommodate a batch of new entries without
@@ -1513,7 +1098,7 @@ impl<T: Config> Pallet<T> {
 	/// with batch operations.
 	pub fn validate_space_for_transaction_entries(
 		namespace_id: &NameSpaceIdOf,
-		entries: u16,
+		_entries: u16,
 	) -> Result<(), Error<T>> {
 		let namespace_details =
 			NameSpaces::<T>::get(namespace_id).ok_or(Error::<T>::NameSpaceNotFound)?;
@@ -1524,85 +1109,7 @@ impl<T: Config> Pallet<T> {
 		// Ensure the namespace is approved for adding new entries.
 		ensure!(namespace_details.approved, Error::<T>::NameSpaceNotApproved);
 
-		// Calculate the new usage to check against the capacity.
-		let new_usage = namespace_details
-			.txn_count
-			.checked_add(entries as u64)
-			.ok_or(Error::<T>::TypeCapacityOverflow)?;
-
-		// Ensure the namespace has enough capacity to accommodate the new entries.
-		if namespace_details.txn_capacity == 0 || new_usage <= namespace_details.txn_capacity {
-			Ok(())
-		} else {
-			Err(Error::<T>::CapacityLimitExceeded)
-		}
-	}
-
-	//
-	/// Increments the usage count of a namespace by one unit.
-	///
-	/// This function is used to increase the usage counter of a namespace,
-	/// typically when a new delegate or entry is added. It ensures that the
-	/// usage count does not overflow.
-	pub fn increment_usage(tx_id: &NameSpaceIdOf) -> Result<(), Error<T>> {
-		NameSpaces::<T>::try_mutate(tx_id, |namespace_opt| {
-			if let Some(namespace_details) = namespace_opt {
-				namespace_details.txn_count = namespace_details.txn_count.saturating_add(1);
-				Ok(())
-			} else {
-				Err(Error::<T>::NameSpaceNotFound)
-			}
-		})
-	}
-
-	/// Decrements the usage count of a namespace by one unit.
-	///
-	/// This function is used to decrease the usage counter of a namespace,
-	/// typically when a delegate or entry is removed. It ensures that the usage
-	/// count does not underflow.
-	pub fn decrement_usage(tx_id: &NameSpaceIdOf) -> Result<(), Error<T>> {
-		NameSpaces::<T>::try_mutate(tx_id, |namespace_opt| {
-			if let Some(namespace_details) = namespace_opt {
-				namespace_details.txn_count = namespace_details.txn_count.saturating_sub(1);
-				Ok(())
-			} else {
-				Err(Error::<T>::NameSpaceNotFound)
-			}
-		})
-	}
-
-	/// Increments the usage count of a namespace by a specified unit.
-	///
-	/// This function increases the usage counter of a namespace by the amount
-	/// specified in `increment`, which is useful for batch operations.
-	/// It ensures that the usage count does not overflow.
-	pub fn increment_usage_entries(tx_id: &NameSpaceIdOf, increment: u16) -> Result<(), Error<T>> {
-		NameSpaces::<T>::try_mutate(tx_id, |namespace_opt| {
-			if let Some(namespace_details) = namespace_opt {
-				namespace_details.txn_count =
-					namespace_details.txn_count.saturating_add(increment.into());
-				Ok(())
-			} else {
-				Err(Error::<T>::NameSpaceNotFound)
-			}
-		})
-	}
-
-	/// Decrements the usage count of a namespace by a specified amount.
-	///
-	/// This function decreases the usage counter of a namespace by the amount
-	/// specified in `decrement`, which is useful for batch removals. It ensures
-	/// that the usage count does not underflow.
-	pub fn decrement_usage_entries(tx_id: &NameSpaceIdOf, decrement: u16) -> Result<(), Error<T>> {
-		NameSpaces::<T>::try_mutate(tx_id, |namespace_opt| {
-			if let Some(namespace_details) = namespace_opt {
-				namespace_details.txn_count =
-					namespace_details.txn_count.saturating_sub(decrement.into());
-				Ok(())
-			} else {
-				Err(Error::<T>::NameSpaceNotFound)
-			}
-		})
+		Ok(())
 	}
 
 	/// Updates the global timeline with a new activity event for a namespace.
