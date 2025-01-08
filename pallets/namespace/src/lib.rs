@@ -120,9 +120,9 @@ pub type NameSpaceIdOf = Ss58Identifier;
 pub type AuthorizationIdOf = Ss58Identifier;
 /// Namespace input code.
 pub type NameSpaceCodeOf<T> = <T as frame_system::Config>::Hash;
-/// Type of on-chain registry entry.
+/// Type of on-chain namespace details.
 pub type NameSpaceDetailsOf<T> =
-	NameSpaceDetails<NameSpaceCodeOf<T>, NameSpaceCreatorOf<T>, StatusOf, NameSpaceIdOf>;
+	NameSpaceDetails<NameSpaceCodeOf<T>, NameSpaceCreatorOf<T>, StatusOf>;
 
 pub type NameSpaceAuthorizationOf<T> =
 	NameSpaceAuthorization<NameSpaceIdOf, NameSpaceCreatorOf<T>, Permissions>;
@@ -181,7 +181,7 @@ pub mod pallet {
 		OptionQuery,
 	>;
 
-	/// namespace delegates stored on chain.
+	/// Namespace delegates stored on chain.
 	/// It maps from an identifier to a  bounded vec of delegates and
 	/// permissions.
 	#[pallet::storage]
@@ -583,7 +583,6 @@ pub mod pallet {
 					creator: creator.clone(),
 					approved,
 					archive: false,
-					parent: identifier.clone(),
 				},
 			);
 

@@ -2,7 +2,6 @@ use super::*;
 use crate::mock::*;
 use codec::Encode;
 use frame_support::assert_ok;
-use frame_system::RawOrigin;
 use sp_runtime::traits::Hash;
 use sp_std::prelude::*;
 
@@ -23,9 +22,7 @@ pub(crate) const ACCOUNT_01: AccountId = AccountId::new([2u8; 32]);
 fn add_delegate_should_succeed() {
 	let creator = ACCOUNT_00;
 	let delegate = ACCOUNT_01;
-	// let author = ACCOUNT_00;
 	let space = [2u8; 256].to_vec();
-	let capacity = 3u64;
 	let space_digest = <Test as frame_system::Config>::Hashing::hash(&space.encode()[..]);
 
 	let id_digest = <Test as frame_system::Config>::Hashing::hash(
@@ -48,7 +45,6 @@ fn add_delegate_should_succeed() {
 		assert_ok!(NameSpace::approve(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
 			space_id.clone(),
-			capacity
 		));
 
 		assert_ok!(NameSpace::add_delegate(
