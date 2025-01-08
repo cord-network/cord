@@ -88,13 +88,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::unused_unit)]
 
-// pub mod weights;
-
 #[cfg(any(feature = "mock", test))]
 pub mod mock;
-
-// #[cfg(feature = "runtime-benchmarks")]
-// pub mod benchmarking;
 
 #[cfg(test)]
 mod tests;
@@ -110,20 +105,33 @@ use identifier::{
 };
 use sp_runtime::traits::{Hash, UniqueSaturatedInto};
 
-// /// Type of a CORD account.
-// pub(crate) type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 /// Type of a namespace creator.
 pub type NameSpaceCreatorOf<T> = <T as frame_system::Config>::AccountId;
+
 /// Namespace Identifier
 pub type NameSpaceIdOf = Ss58Identifier;
+
+/// Registry Identifier
+pub type RegistryIdOf = Ss58Identifier;
+
 /// Authorization Identifier
 pub type AuthorizationIdOf = Ss58Identifier;
-/// Namespace input code.
-pub type NameSpaceCodeOf<T> = <T as frame_system::Config>::Hash;
-/// Type of on-chain namespace details.
-pub type NameSpaceDetailsOf<T> =
-	NameSpaceDetails<NameSpaceCodeOf<T>, NameSpaceCreatorOf<T>, StatusOf>;
 
+/// Namespace input code
+pub type NameSpaceCodeOf<T> = <T as frame_system::Config>::Hash;
+
+/// Registry Identifier mapped to a Namespace.
+pub type MaxRegistriesOf<T> = <T as crate::Config>::MaxNameSpaceDelegates;
+
+/// Type of on-chain Namespace details
+pub type NameSpaceDetailsOf<T> = NameSpaceDetails<
+	NameSpaceCodeOf<T>,
+	NameSpaceCreatorOf<T>,
+	StatusOf,
+	BoundedVec<RegistryIdOf, MaxRegistriesOf<T>>,
+>;
+
+/// Type of Namespace Authorization details
 pub type NameSpaceAuthorizationOf<T> =
 	NameSpaceAuthorization<NameSpaceIdOf, NameSpaceCreatorOf<T>, Permissions>;
 
@@ -141,12 +149,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + identifier::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		// type EnsureOrigin: EnsureOrigin<
-		// 	<Self as frame_system::Config>::RuntimeOrigin,
-		// 	Success = <Self as Config>::OriginSuccess,
-		// >;
-		// type OriginSuccess: CallSources<AccountIdOf<Self>, NameSpaceCreatorOf<Self>>;
-		// type NameSpaceCreatorId: Parameter + MaxEncodedLen;
+
 		type ChainSpaceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 		type NetworkPermission: IsPermissioned;
 
@@ -164,13 +167,13 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
-	/// namespace information stored on chain.
+	/// Namespace information stored on chain.
 	/// It maps from an identifier to its details.
 	#[pallet::storage]
 	pub type NameSpaces<T> =
 		StorageMap<_, Blake2_128Concat, NameSpaceIdOf, NameSpaceDetailsOf<T>, OptionQuery>;
 
-	/// namespace authorizations stored on-chain.
+	/// Namespace authorizations stored on-chain.
 	/// It maps from an identifier to delegates.
 	#[pallet::storage]
 	pub type Authorizations<T> = StorageMap<
@@ -231,12 +234,6 @@ pub mod pallet {
 		/// A namespace approval has been restored.
 		/// \[namespace identifier, \]
 		ApprovalRestore { namespace: NameSpaceIdOf },
-		/// A namespace capacity has been updated.
-		/// \[namespace identifier \]
-		UpdateCapacity { namespace: NameSpaceIdOf },
-		/// A namespace usage has been reset.
-		/// \[namespace identifier \]
-		ResetUsage { namespace: NameSpaceIdOf },
 	}
 
 	#[pallet::error]
@@ -272,14 +269,6 @@ pub mod pallet {
 		NameSpaceAlreadyApproved,
 		/// NameSpace not approved.
 		NameSpaceNotApproved,
-		/// The capacity limit for the namespace has been exceeded.
-		CapacityLimitExceeded,
-		/// The new capacity value is lower than the current usage
-		CapacityLessThanUsage,
-		/// Capacity value missing
-		CapacityValueMissing,
-		/// Type capacity overflow
-		TypeCapacityOverflow,
 	}
 
 	#[pallet::call]
@@ -583,6 +572,7 @@ pub mod pallet {
 					creator: creator.clone(),
 					approved,
 					archive: false,
+					registry_id: Some(BoundedVec::default()),
 				},
 			);
 

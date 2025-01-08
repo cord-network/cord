@@ -80,11 +80,12 @@ impl Default for Permissions {
 ///   body.
 /// - `archive`: Indicates whether the namespace is currently archived.
 #[derive(Encode, Decode, Clone, MaxEncodedLen, RuntimeDebug, PartialEq, Eq, TypeInfo)]
-pub struct NameSpaceDetails<NameSpaceCodeOf, NameSpaceCreatorOf, StatusOf> {
+pub struct NameSpaceDetails<NameSpaceCodeOf, NameSpaceCreatorOf, StatusOf, RegistryIdOf> {
 	pub code: NameSpaceCodeOf,
 	pub creator: NameSpaceCreatorOf,
 	pub approved: StatusOf,
 	pub archive: StatusOf,
+	pub registry_id: Option<RegistryIdOf>,
 }
 
 /// Authorization details for a namespace delegate.
