@@ -764,6 +764,7 @@ parameter_types! {
 
 parameter_types! {
 	pub const MaxNameSpaceDelegates: u32 = 10_000;
+	pub const MaxNameSpaceBlobSize: u32 = 4 * 1024;
 }
 
 impl pallet_namespace::Config for Runtime {
@@ -771,6 +772,7 @@ impl pallet_namespace::Config for Runtime {
 	type ChainSpaceOrigin = EnsureRoot<AccountId>;
 	type NetworkPermission = NetworkParameters;
 	type MaxNameSpaceDelegates = MaxNameSpaceDelegates;
+	type MaxNameSpaceBlobSize = MaxNameSpaceBlobSize;
 	type WeightInfo = ();
 }
 

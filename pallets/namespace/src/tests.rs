@@ -22,29 +22,34 @@ pub(crate) const ACCOUNT_01: AccountId = AccountId::new([2u8; 32]);
 fn add_delegate_should_succeed() {
 	let creator = ACCOUNT_00;
 	let delegate = ACCOUNT_01;
-	let space = [2u8; 256].to_vec();
-	let space_digest = <Test as frame_system::Config>::Hashing::hash(&space.encode()[..]);
+
+	let raw_blob = [1u8; 256].to_vec();
+	let blob: NameSpaceBlobOf<Test> = BoundedVec::try_from(raw_blob)
+		.expect("Test blob should fit into the expected input length of for the test runtime.");
+
+	let namespace = [2u8; 256].to_vec();
+	let namespace_digest = <Test as frame_system::Config>::Hashing::hash(&namespace.encode()[..]);
 
 	let id_digest = <Test as frame_system::Config>::Hashing::hash(
-		&[&space_digest.encode()[..], &creator.encode()[..]].concat()[..],
+		&[&namespace_digest.encode()[..], &creator.encode()[..]].concat()[..],
 	);
-
-	let space_id: NameSpaceIdOf = generate_namespace_id::<Test>(&id_digest);
+	let namespace_id: NameSpaceIdOf = generate_namespace_id::<Test>(&id_digest);
 
 	let auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
-		&[&space_id.encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()[..],
+		&[&namespace_id.encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()[..],
 	);
 
 	let authorization_id: AuthorizationIdOf = generate_authorization_id::<Test>(&auth_id_digest);
 	new_test_ext().execute_with(|| {
 		assert_ok!(NameSpace::create(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			space_digest,
+			namespace_digest,
+			Some(blob),
 		));
 
 		assert_ok!(NameSpace::add_delegate(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			space_id,
+			namespace_id,
 			delegate.clone(),
 			authorization_id,
 		));

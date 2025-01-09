@@ -78,9 +78,8 @@
 //! ## Examples
 //!
 //! - Creating a new namespace for a community-driven project.
-//! - Approving a namespace for official use after meeting certain criteria. (TODO: Remove this
-//!   line)
 //! - Archiving a namespace that is no longer active or has violated terms of use.
+//! - Restoring an archived namespace to reactivate it for further use after compliance checks.
 //! - Adding delegates to a namespace to ensure ongoing compliance with governance standards.
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -103,6 +102,15 @@ use identifier::{
 };
 use sp_runtime::traits::{Hash, UniqueSaturatedInto};
 
+/// Type of a NameSpace Hash
+pub type NameSpaceHashOf<T> = <T as frame_system::Config>::Hash;
+
+/// Type of Maximum allowed size of a NameSpace Blob
+pub type MaxNameSpaceBlobSizeOf<T> = <T as crate::Config>::MaxNameSpaceBlobSize;
+
+/// Type of a NameSpace Blob
+pub type NameSpaceBlobOf<T> = BoundedVec<u8, MaxNameSpaceBlobSizeOf<T>>;
+
 /// Type of a namespace creator.
 pub type NameSpaceCreatorOf<T> = <T as frame_system::Config>::AccountId;
 
@@ -123,7 +131,7 @@ pub type MaxRegistriesOf<T> = <T as crate::Config>::MaxNameSpaceDelegates;
 
 /// Type of on-chain Namespace details
 pub type NameSpaceDetailsOf<T> = NameSpaceDetails<
-	NameSpaceCodeOf<T>,
+	NameSpaceHashOf<T>,
 	NameSpaceCreatorOf<T>,
 	StatusOf,
 	BoundedVec<RegistryIdOf, MaxRegistriesOf<T>>,
@@ -149,10 +157,14 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		type ChainSpaceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+
 		type NetworkPermission: IsPermissioned;
 
 		#[pallet::constant]
 		type MaxNameSpaceDelegates: Get<u32>;
+
+		#[pallet::constant]
+		type MaxNameSpaceBlobSize: Get<u32>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -497,13 +509,17 @@ pub mod pallet {
 		///   namespace identifier, the creator's identifier, and the authorization ID.
 		#[pallet::call_index(4)]
 		#[pallet::weight({0})]
-		pub fn create(origin: OriginFor<T>, namespace_code: NameSpaceCodeOf<T>) -> DispatchResult {
+		pub fn create(
+			origin: OriginFor<T>,
+			digest: NameSpaceHashOf<T>,
+			_blob: Option<NameSpaceBlobOf<T>>,
+		) -> DispatchResult {
 			let creator = ensure_signed(origin)?;
 
 			// Id Digest = concat (H(<scale_encoded_registry_input>,
 			// <scale_encoded_creator_identifier>))
 			let id_digest = <T as frame_system::Config>::Hashing::hash(
-				&[&namespace_code.encode()[..], &creator.encode()[..]].concat()[..],
+				&[&digest.encode()[..], &creator.encode()[..]].concat()[..],
 			);
 
 			let identifier =
@@ -550,7 +566,7 @@ pub mod pallet {
 			<NameSpaces<T>>::insert(
 				&identifier,
 				NameSpaceDetailsOf::<T> {
-					code: namespace_code,
+					digest,
 					creator: creator.clone(),
 					archive: false,
 					registry_id: Some(BoundedVec::default()),

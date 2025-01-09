@@ -71,6 +71,7 @@ impl IsPermissioned for NetworkPermission {
 parameter_types! {
 	#[derive(Debug, Clone)]
 	pub const MaxNameSpaceDelegates: u32 = 5u32;
+	pub const MaxNameSpaceBlobSize: u32 = 4u32 * 1024;
 }
 
 impl pallet_namespace::Config for Test {
@@ -78,6 +79,7 @@ impl pallet_namespace::Config for Test {
 	type ChainSpaceOrigin = EnsureRoot<AccountId>;
 	type NetworkPermission = NetworkPermission;
 	type MaxNameSpaceDelegates = MaxNameSpaceDelegates;
+	type MaxNameSpaceBlobSize = MaxNameSpaceBlobSize;
 	type WeightInfo = ();
 }
 

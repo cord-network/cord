@@ -74,8 +74,8 @@ impl Default for Permissions {
 /// - `creator`: The account or entity that created the namespace.
 /// - `archive`: Indicates whether the namespace is currently archived.
 #[derive(Encode, Decode, Clone, MaxEncodedLen, RuntimeDebug, PartialEq, Eq, TypeInfo)]
-pub struct NameSpaceDetails<NameSpaceCodeOf, NameSpaceCreatorOf, StatusOf, RegistryIdOf> {
-	pub code: NameSpaceCodeOf,
+pub struct NameSpaceDetails<NameSpaceHashOf, NameSpaceCreatorOf, StatusOf, RegistryIdOf> {
+	pub digest: NameSpaceHashOf,
 	pub creator: NameSpaceCreatorOf,
 	pub archive: StatusOf,
 	pub registry_id: Option<RegistryIdOf>,
