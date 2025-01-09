@@ -454,8 +454,44 @@ fn adding_already_connected_connection_should_fail() {
 	});
 }
 
+// Test to check whether the peerId is TooLong or not.
 #[test]
 fn test_generate_peer_id_invalid_utf8() {
+	// Invalid UTF-8 node ID
 	let invalid_node_id: NodeId = vec![0xFF, 0xFE, 0xFD];
 	assert_err!(NodeAuthorization::generate_peer_id(&invalid_node_id), Error::<Test>::InvalidUtf8);
+}
+
+#[test]
+fn test_generate_peer_id_too_long() {
+	// Node ID exceeding the maximum length
+	let long_node_id: NodeId = vec![0x01; MAX_NODE_ID_LEN + 1]; // Exceeds max length
+	assert_err!(NodeAuthorization::generate_peer_id(&long_node_id), Error::<Test>::PeerIdTooLong);
+}
+
+#[test]
+fn add_well_known_node_with_peer_id_too_long_should_fail() {
+	new_test_ext().execute_with(|| {
+		// Attempt to add a node with an excessively long peer ID
+		assert_noop!(
+			NodeAuthorization::add_well_known_node(
+				RuntimeOrigin::signed(1),
+				test_node(TEST_NODE_LEN), // Exceeds max length
+				15
+			),
+			Error::<Test>::PeerIdTooLong
+		);
+	});
+}
+
+#[test]
+fn remove_well_known_node_with_peer_id_too_long_should_fail() {
+	new_test_ext().execute_with(|| {
+		// Attempt to remove a node with an excessively long peer ID
+		let long_peer_id: PeerId = vec![0x01; MAX_PEER_ID_LEN + 1]; // Exceeds max length
+		assert_noop!(
+			NodeAuthorization::remove_well_known_node(RuntimeOrigin::signed(1), long_peer_id),
+			Error::<Test>::PeerIdTooLong
+		);
+	});
 }
