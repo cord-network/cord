@@ -38,8 +38,6 @@
 //! The pallet provides dispatchable functions for namespace management:
 //!
 //! - `create`: Initializes a new namespace with a unique identifier.
-//! - `approve`: Approves a namespace for use, setting its capacity and governance status. (TODO:
-//!   Remove approve)
 //! - `archive`: Marks a namespace as archived, effectively freezing its state.
 //! - `restore`: Unarchives a namespace, returning it to active status.
 //! - `add_delegate`: Adds a delegate to a namespace, granting them specific permissions.
@@ -216,9 +214,6 @@ pub mod pallet {
 			creator: NameSpaceCreatorOf<T>,
 			authorization: AuthorizationIdOf,
 		},
-		/// A new namespace has been approved.
-		/// \[namespace identifier \]
-		Approve { namespace: NameSpaceIdOf },
 		/// A namespace has been archived.
 		/// \[namespace identifier,  authority\]
 		Archive { namespace: NameSpaceIdOf, authority: NameSpaceCreatorOf<T> },
@@ -228,12 +223,6 @@ pub mod pallet {
 		/// A namespace has been restored.
 		/// \[namespace identifier, \]
 		Revoke { namespace: NameSpaceIdOf },
-		/// A namespace approval has been revoked.
-		/// \[namespace identifier, \]
-		ApprovalRevoke { namespace: NameSpaceIdOf },
-		/// A namespace approval has been restored.
-		/// \[namespace identifier, \]
-		ApprovalRestore { namespace: NameSpaceIdOf },
 	}
 
 	#[pallet::error]
@@ -265,10 +254,6 @@ pub mod pallet {
 		AuthorizationNotFound,
 		/// Delegate not found.
 		DelegateNotFound,
-		/// NameSpace already approved
-		NameSpaceAlreadyApproved,
-		/// NameSpace not approved.
-		NameSpaceNotApproved,
 	}
 
 	#[pallet::call]
@@ -405,7 +390,7 @@ pub mod pallet {
 		///
 		/// This function will remove an existing delegate from a namespace, given
 		/// the namespace ID and the delegate's authorization ID. It checks that the
-		/// namespace exists, is not archived, is approved, and that the provided
+		/// namespace exists, is not archived and that the provided
 		/// authorization corresponds to a delegate of the namespace. It also
 		/// verifies that the caller has the authority to remove a delegate.
 		///
@@ -429,7 +414,6 @@ pub mod pallet {
 		/// - `NameSpaceNotFound`: If the specified namespace ID does not correspond to an existing
 		///   namespace.
 		/// - `ArchivedNameSpace`: If the namespace is archived and no longer active.
-		/// - `NameSpaceNotApproved`: If the namespace has not been approved for use.
 		/// - `DelegateNotFound`: If the delegate specified by `remove_authorization` is not found
 		///   in the namespace.
 		///
@@ -563,14 +547,11 @@ pub mod pallet {
 				},
 			);
 
-			let approved = !T::NetworkPermission::is_permissioned();
-
 			<NameSpaces<T>>::insert(
 				&identifier,
 				NameSpaceDetailsOf::<T> {
 					code: namespace_code,
 					creator: creator.clone(),
-					approved,
 					archive: false,
 					registry_id: Some(BoundedVec::default()),
 				},
@@ -588,77 +569,11 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Approves a namespace and sets its capacity.
-		///
-		/// This function can only be called by a council or root origin,
-		/// reflecting its privileged nature. It is used to approve a namespace that
-		/// has been previously created, setting its transaction capacity and
-		/// marking it as approved. It ensures that the namespace exists, is not
-		/// archived, and has not already been approved.
-		///
-		/// # Parameters
-		/// - `origin`: The origin of the transaction, which must be a council or root origin.
-		/// - `namespace_id`: The identifier of the namespace to be approved.
-		/// - `txn_capacity`: The transaction capacity to be set for the namespace.
-		///
-		/// # Returns
-		/// - `DispatchResult`: Returns `Ok(())` if the namespace is successfully approved, or an
-		///   error (`DispatchError`) if:
-		///   - The origin is not a council or root origin.
-		///   - The namespace does not exist.
-		///   - The namespace is archived.
-		///   - The namespace is already approved.
-		///
-		/// # Errors
-		/// - `BadOrigin`: If the call does not come from a council or root origin.
-		/// - `NameSpaceNotFound`: If the specified namespace ID does not correspond to an existing
-		///   namespace.
-		/// - `ArchivedNameSpace`: If the namespace is archived and no longer active.
-		/// - `NameSpaceAlreadyApproved`: If the namespace has already been approved.
-		///
-		/// # Events
-		/// - `Approve`: Emitted when a namespace is successfully approved. It includes the
-		///   namespace identifier.
-		///
-		/// # Security Considerations
-		/// Due to the privileged nature of this function, callers must ensure
-		/// that they have the appropriate authority. Misuse can lead to
-		/// unauthorized approval of namespaces, which may have security
-		/// implications.
-		#[pallet::call_index(5)]
-		#[pallet::weight({0})]
-		pub fn approve(origin: OriginFor<T>, namespace_id: NameSpaceIdOf) -> DispatchResult {
-			// TODO: Below should be root
-			let _creator = ensure_signed(origin)?;
-
-			let namespace_details =
-				NameSpaces::<T>::get(&namespace_id).ok_or(Error::<T>::NameSpaceNotFound)?;
-			ensure!(!namespace_details.archive, Error::<T>::ArchivedNameSpace);
-			ensure!(!namespace_details.approved, Error::<T>::NameSpaceAlreadyApproved);
-
-			<NameSpaces<T>>::insert(
-				&namespace_id,
-				NameSpaceDetailsOf::<T> { approved: true, ..namespace_details },
-			);
-
-			// TODO: Add Namespace in Identifier types and update all activities.
-			Self::update_activity(
-				&namespace_id,
-				IdentifierTypeOf::ChainSpace,
-				CallTypeOf::Approved,
-			)
-			.map_err(Error::<T>::from)?;
-
-			Self::deposit_event(Event::Approve { namespace: namespace_id });
-
-			Ok(())
-		}
-
 		/// Archives a namespace, rendering it inactive.
 		///
 		/// This function marks a namespace as archived based on the provided namespace
-		/// ID. It checks that the namespace exists, is not already archived, and is
-		/// approved. Additionally, it verifies that the caller has the
+		/// ID. It checks that the namespace exists, is not already archived.
+		/// Additionally, it verifies that the caller has the
 		/// authority to archive the namespace, as indicated by the provided
 		/// authorization ID.
 		///
@@ -674,7 +589,6 @@ pub mod pallet {
 		///   error (`DispatchError`) if:
 		///   - The namespace does not exist.
 		/// - `ArchivedNameSpace`: If the namespace is already archived.
-		/// - `NameSpaceNotApproved`: If the namespace has not been approved for use.
 		/// - `UnauthorizedOperation`: If the caller does not have the authority to archive the
 		///   namespace.
 		///
@@ -682,7 +596,6 @@ pub mod pallet {
 		/// - `NameSpaceNotFound`: If the specified namespace ID does not correspond to an existing
 		///   namespace.
 		/// - `ArchivedNameSpace`: If the namespace is already archived.
-		/// - `NameSpaceNotApproved`: If the namespace has not been approved for use.
 		/// - `UnauthorizedOperation`: If the caller is not authorized to archive the namespace.
 		///
 		/// # Events
@@ -703,7 +616,6 @@ pub mod pallet {
 			let namespace_details =
 				NameSpaces::<T>::get(&namespace_id).ok_or(Error::<T>::NameSpaceNotFound)?;
 			ensure!(!namespace_details.archive, Error::<T>::ArchivedNameSpace);
-			ensure!(namespace_details.approved, Error::<T>::NameSpaceNotApproved);
 
 			<NameSpaces<T>>::insert(
 				&namespace_id,
@@ -721,8 +633,8 @@ pub mod pallet {
 		/// Restores an archived namespace, making it active again.
 		///
 		/// This function unarchives a namespace based on the provided namespace ID. It
-		/// checks that the namespace exists, is currently archived, and is
-		/// approved. It also verifies that the caller has the authority to
+		/// checks that the namespace exists, is currently archived.
+		/// It also verifies that the caller has the authority to
 		/// restore the namespace, as indicated by the provided authorization ID.
 		///
 		/// # Parameters
@@ -737,14 +649,12 @@ pub mod pallet {
 		///   error (`DispatchError`) if:
 		///   - The namespace does not exist.
 		///   - The namespace is not archived.
-		///   - The namespace is not approved.
 		///   - The caller does not have the authority to restore the namespace.
 		///
 		/// # Errors
 		/// - `NameSpaceNotFound`: If the specified namespace ID does not correspond to an existing
 		///   namespace.
 		/// - `NameSpaceNotArchived`: If the namespace is not currently archived.
-		/// - `NameSpaceNotApproved`: If the namespace has not been approved for use.
 		/// - `UnauthorizedOperation`: If the caller is not authorized to restore the namespace.
 		///
 		/// # Events
@@ -766,7 +676,6 @@ pub mod pallet {
 			let namespace_details =
 				NameSpaces::<T>::get(&namespace_id).ok_or(Error::<T>::NameSpaceNotFound)?;
 			ensure!(namespace_details.archive, Error::<T>::NameSpaceNotArchived);
-			ensure!(namespace_details.approved, Error::<T>::NameSpaceNotApproved);
 
 			<NameSpaces<T>>::insert(
 				&namespace_id,
@@ -780,87 +689,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-
-		/// Revokes approval for a specified namespace.
-		///
-		/// This function can be executed by an authorized origin, as determined
-		/// by `ChainSpaceOrigin`. It is designed to change the status of a
-		/// given namespace, referred to by `namespace_id`, to unapproved.
-		/// The revocation is only allowed if the namespace is currently approved,
-		/// and not archived.
-		///
-		/// # Parameters
-		/// - `origin`: The transaction's origin, which must satisfy the `ChainSpaceOrigin` policy.
-		/// - `namespace_id`: The identifier of the namespace whose approval status is being
-		///   revoked.
-		///
-		/// # Errors
-		/// - Returns `NameSpaceNotFound` if no namespace corresponds to the provided `space_id`.
-		/// - Returns `ArchivedNameSpace` if the namespace is archived, in which case its status
-		///   cannot be altered.
-		/// - Returns `NameSpaceNotApproved` if the namespace is already unapproved.
-		///
-		/// # Events
-		/// - Emits `Revoke` when the namespace's approved status is successfully revoked.
-		#[pallet::call_index(10)]
-		#[pallet::weight({0})]
-		pub fn approval_revoke(
-			origin: OriginFor<T>,
-			namespace_id: NameSpaceIdOf,
-		) -> DispatchResult {
-			let _creator = ensure_signed(origin)?;
-
-			let namespace_details =
-				NameSpaces::<T>::get(&namespace_id).ok_or(Error::<T>::NameSpaceNotFound)?;
-			ensure!(!namespace_details.archive, Error::<T>::ArchivedNameSpace);
-			ensure!(namespace_details.approved, Error::<T>::NameSpaceNotApproved);
-
-			<NameSpaces<T>>::insert(
-				&namespace_id,
-				NameSpaceDetailsOf::<T> { approved: false, ..namespace_details },
-			);
-
-			Self::update_activity(
-				&namespace_id,
-				IdentifierTypeOf::ChainSpace,
-				CallTypeOf::CouncilRevoke,
-			)
-			.map_err(Error::<T>::from)?;
-
-			Self::deposit_event(Event::ApprovalRevoke { namespace: namespace_id });
-
-			Ok(())
-		}
-
-		#[pallet::call_index(11)]
-		#[pallet::weight({0})]
-		pub fn approval_restore(
-			origin: OriginFor<T>,
-			namespace_id: NameSpaceIdOf,
-		) -> DispatchResult {
-			let _creator = ensure_signed(origin)?;
-
-			let namespace_details =
-				NameSpaces::<T>::get(&namespace_id).ok_or(Error::<T>::NameSpaceNotFound)?;
-			ensure!(!namespace_details.archive, Error::<T>::ArchivedNameSpace);
-			ensure!(!namespace_details.approved, Error::<T>::NameSpaceAlreadyApproved);
-
-			<NameSpaces<T>>::insert(
-				&namespace_id,
-				NameSpaceDetailsOf::<T> { approved: true, ..namespace_details },
-			);
-
-			Self::update_activity(
-				&namespace_id,
-				IdentifierTypeOf::ChainSpace,
-				CallTypeOf::CouncilRestore,
-			)
-			.map_err(Error::<T>::from)?;
-
-			Self::deposit_event(Event::ApprovalRestore { namespace: namespace_id });
-
-			Ok(())
-		}
 	}
 }
 
@@ -871,7 +699,7 @@ impl<T: Config> Pallet<T> {
 	/// the delegate's information, and the required permissions. It constructs
 	/// an authorization ID based on the namespace ID, delegate, and creator,
 	/// ensuring that the delegate is not already added. It also checks that the
-	/// namespace is not archived, is approved, and has not exceeded its capacity.
+	/// namespace is not archived and has not exceeded its capacity.
 	fn space_delegate_addition(
 		namespace_id: NameSpaceIdOf,
 		delegate: NameSpaceCreatorOf<T>,
@@ -1039,7 +867,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Validates that a namespace is eligible for a new transaction.
 	///
-	/// This function ensures that a namespace is not archived, is approved, and has
+	/// This function ensures that a namespace is not archived and has
 	/// not exceeded its capacity limit before allowing a new transaction to be
 	/// recorded. It is a critical check that enforces the integrity and
 	/// constraints of namespace usage on the chain.
@@ -1050,18 +878,14 @@ impl<T: Config> Pallet<T> {
 		// Ensure the namespace is not archived.
 		ensure!(!namespace_details.archive, Error::<T>::ArchivedNameSpace);
 
-		// Ensure the namespace is approved for transactions.
-		ensure!(namespace_details.approved, Error::<T>::NameSpaceNotApproved);
-
 		Ok(())
 	}
 
 	/// Validates a namespace for restore transactions.
 	///
-	/// This function checks that the specified namespace is approved and has not
-	/// exceeded its capacity limit. It is designed to be called before
-	/// performing any administrative actions on a namespace to ensure
-	/// that the namespace is in a proper state for such transactions.
+	/// This function checks that the specified namespace is archived alread.
+	/// It is designed to be called before performing any administrative actions
+	/// on a namespace to ensure that the namespace is in a proper state for such transactions.
 	pub fn validate_space_for_restore_transaction(
 		namespace_id: &NameSpaceIdOf,
 	) -> Result<(), Error<T>> {
@@ -1071,16 +895,13 @@ impl<T: Config> Pallet<T> {
 		// Ensure the namespace is archived.
 		ensure!(namespace_details.archive, Error::<T>::NameSpaceNotArchived);
 
-		// Ensure the namespace is approved for transactions.
-		ensure!(namespace_details.approved, Error::<T>::NameSpaceNotApproved);
-
 		Ok(())
 	}
 
 	/// Validates that a namespace can accommodate a batch of new entries without
 	/// exceeding its capacity.
 	///
-	/// This function ensures that a namespace is not archived, is approved, and has
+	/// This function ensures that a namespace is not archived and has
 	/// enough remaining capacity to accommodate a specified number of new
 	/// entries. It is a critical check that enforces the integrity and
 	/// constraints of namespace usage on the chain, especially when dealing
@@ -1094,9 +915,6 @@ impl<T: Config> Pallet<T> {
 
 		// Ensure the namespace is not archived.
 		ensure!(!namespace_details.archive, Error::<T>::ArchivedNameSpace);
-
-		// Ensure the namespace is approved for adding new entries.
-		ensure!(namespace_details.approved, Error::<T>::NameSpaceNotApproved);
 
 		Ok(())
 	}

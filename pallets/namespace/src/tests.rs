@@ -42,11 +42,6 @@ fn add_delegate_should_succeed() {
 			space_digest,
 		));
 
-		assert_ok!(NameSpace::approve(
-			frame_system::RawOrigin::Signed(creator.clone()).into(),
-			space_id.clone(),
-		));
-
 		assert_ok!(NameSpace::add_delegate(
 			frame_system::RawOrigin::Signed(creator.clone()).into(),
 			space_id,

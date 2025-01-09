@@ -32,7 +32,6 @@ bitflags! {
 		const ASSERT = 0b0000_0001;
 		const DELEGATE = 0b0000_0010;
 		const ADMIN = 0b0000_0100;
-
 	}
 }
 
@@ -73,17 +72,11 @@ impl Default for Permissions {
 ///
 /// - `code`: The unique code or identifier for the namespace.
 /// - `creator`: The account or entity that created the namespace.
-/// - `txn_capacity`: The maximum allowed transactions within the namespace. A value of zero denotes
-///   unlimited capacity.
-/// - `txn_count`: The current usage of the namespace's capacity.
-/// - `approved`: Indicates whether the namespace has been approved by the appropriate governance
-///   body.
 /// - `archive`: Indicates whether the namespace is currently archived.
 #[derive(Encode, Decode, Clone, MaxEncodedLen, RuntimeDebug, PartialEq, Eq, TypeInfo)]
 pub struct NameSpaceDetails<NameSpaceCodeOf, NameSpaceCreatorOf, StatusOf, RegistryIdOf> {
 	pub code: NameSpaceCodeOf,
 	pub creator: NameSpaceCreatorOf,
-	pub approved: StatusOf,
 	pub archive: StatusOf,
 	pub registry_id: Option<RegistryIdOf>,
 }
