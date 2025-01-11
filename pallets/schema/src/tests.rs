@@ -314,3 +314,54 @@ fn test_schema_lookup() {
 		}
 	});
 }
+#[test]
+fn test_schema_creation_exceeds_max_encoded_limit() {
+	let creator = DID_00;
+	let author = ACCOUNT_00;
+
+	let raw_space = [2u8; 256].to_vec();
+	let space_digest = <Test as frame_system::Config>::Hashing::hash(&raw_space.encode()[..]);
+	let space_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&space_digest.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let space_id: SpaceIdOf = generate_space_id::<Test>(&space_id_digest);
+
+	let max_schema_data = vec![2u8; MaxEncodedSchemaLength::get() as usize];
+	let max_schema: BoundedVec<u8, MaxEncodedSchemaLength> = BoundedVec::try_from(max_schema_data)
+		.expect("Schema at max length should be convertible to BoundedVec");
+
+	let too_large_schema_data = vec![2u8; MaxEncodedSchemaLength::get() as usize + 1];
+
+	let auth_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&space_id.encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let authorization_id: Ss58Identifier = generate_authorization_id::<Test>(&auth_digest);
+
+	new_test_ext().execute_with(|| {
+		assert_ok!(Space::create(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			space_digest,
+		));
+		assert_ok!(Space::approve(RawOrigin::Root.into(), space_id, 10));
+
+		assert_ok!(Schema::create(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			max_schema,
+			authorization_id.clone()
+		));
+
+		assert!(
+			BoundedVec::<u8, MaxEncodedSchemaLength>::try_from(too_large_schema_data.clone())
+				.is_err(),
+			"BoundedVec conversion should fail for oversized schema"
+		);
+
+		let result = Schema::create(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			BoundedVec::try_from(too_large_schema_data).unwrap_or_default(),
+			authorization_id.clone(),
+		);
+
+		assert!(result.is_err(), "Schema creation with oversized data should fail");
+	});
+}
