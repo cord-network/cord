@@ -461,7 +461,7 @@ pub mod pallet {
 
 				Self::update_activity(
 					&namespace_id,
-					IdentifierTypeOf::Auth,
+					IdentifierTypeOf::NameSpaceAuthorization,
 					CallTypeOf::Deauthorization,
 				)?;
 
@@ -573,7 +573,7 @@ pub mod pallet {
 				},
 			);
 
-			Self::update_activity(&identifier, IdentifierTypeOf::ChainSpace, CallTypeOf::Genesis)
+			Self::update_activity(&identifier, IdentifierTypeOf::NameSpace, CallTypeOf::Genesis)
 				.map_err(Error::<T>::from)?;
 
 			Self::deposit_event(Event::Create {
@@ -638,7 +638,7 @@ pub mod pallet {
 				NameSpaceDetailsOf::<T> { archive: true, ..namespace_details },
 			);
 
-			Self::update_activity(&namespace_id, IdentifierTypeOf::ChainSpace, CallTypeOf::Archive)
+			Self::update_activity(&namespace_id, IdentifierTypeOf::NameSpace, CallTypeOf::Archive)
 				.map_err(Error::<T>::from)?;
 
 			Self::deposit_event(Event::Archive { namespace: namespace_id, authority: creator });
@@ -698,7 +698,7 @@ pub mod pallet {
 				NameSpaceDetailsOf::<T> { archive: false, ..namespace_details },
 			);
 
-			Self::update_activity(&namespace_id, IdentifierTypeOf::ChainSpace, CallTypeOf::Restore)
+			Self::update_activity(&namespace_id, IdentifierTypeOf::NameSpace, CallTypeOf::Restore)
 				.map_err(Error::<T>::from)?;
 
 			Self::deposit_event(Event::Restore { namespace: namespace_id, authority: creator });
@@ -753,8 +753,12 @@ impl<T: Config> Pallet<T> {
 			},
 		);
 
-		Self::update_activity(&namespace_id, IdentifierTypeOf::Auth, CallTypeOf::Authorization)
-			.map_err(Error::<T>::from)?;
+		Self::update_activity(
+			&namespace_id,
+			IdentifierTypeOf::NameSpaceAuthorization,
+			CallTypeOf::Authorization,
+		)
+		.map_err(Error::<T>::from)?;
 
 		Self::deposit_event(Event::Authorization {
 			namespace: namespace_id,
