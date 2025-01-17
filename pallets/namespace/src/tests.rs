@@ -5,10 +5,12 @@ use frame_support::assert_ok;
 use sp_runtime::traits::Hash;
 use sp_std::prelude::*;
 
+/// Generate a namespace id from a digest.
 pub fn generate_namespace_id<T: Config>(digest: &NameSpaceCodeOf<T>) -> NameSpaceIdOf {
 	Ss58Identifier::create_identifier(&(digest).encode()[..], IdentifierType::Space).unwrap()
 }
 
+/// Generate an authorization id from a digest.
 pub fn generate_authorization_id<T: Config>(digest: &NameSpaceCodeOf<T>) -> AuthorizationIdOf {
 	Ss58Identifier::create_identifier(&(digest).encode()[..], IdentifierType::Authorization)
 		.unwrap()

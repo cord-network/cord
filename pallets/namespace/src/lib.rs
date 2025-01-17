@@ -156,8 +156,8 @@ pub mod pallet {
 	pub trait Config: frame_system::Config + identifier::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
+		// TODO: Remove below two constants.
 		type ChainSpaceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
-
 		type NetworkPermission: IsPermissioned;
 
 		#[pallet::constant]
