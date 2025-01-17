@@ -75,8 +75,10 @@ pub mod pallet {
 		CordIdentifierType, IdentifierCreator, IdentifierTimeline, IdentifierType, Ss58Identifier,
 	};
 
-	/// Type of the Authorization
-	pub type AuthorizationIdOf = Ss58Identifier;
+	/// Type of the Namespace Authorization
+	pub type NamespaceAuthorizationIdOf = Ss58Identifier;
+	/// Type of the Registry Authorization
+	pub type RegistryAuthorizationIdOf = Ss58Identifier;
 	/// Type of the Registry Entry Digest
 	pub type RegistryEntryHashOf<T> = <T as frame_system::Config>::Hash;
 	/// Type of the Registry Identifier
@@ -222,7 +224,7 @@ pub mod pallet {
 		pub fn create(
 			origin: OriginFor<T>,
 			_registry_entry_id: RegistryEntryIdOf,
-			authorization: AuthorizationIdOf,
+			authorization: RegistryAuthorizationIdOf,
 			digest: RegistryEntryHashOf<T>,
 			_blob: Option<RegistryEntryBlobOf<T>>,
 		) -> DispatchResult {
@@ -321,7 +323,7 @@ pub mod pallet {
 		pub fn update(
 			origin: OriginFor<T>,
 			registry_entry_id: RegistryEntryIdOf,
-			authorization: AuthorizationIdOf,
+			authorization: RegistryAuthorizationIdOf,
 			digest: RegistryEntryHashOf<T>,
 			_blob: Option<RegistryEntryBlobOf<T>>,
 		) -> DispatchResult {
@@ -387,7 +389,7 @@ pub mod pallet {
 		pub fn revoke(
 			origin: OriginFor<T>,
 			registry_entry_id: RegistryEntryIdOf,
-			authorization: AuthorizationIdOf,
+			authorization: RegistryAuthorizationIdOf,
 		) -> DispatchResult {
 			let updater = ensure_signed(origin)?;
 			let registry_id = pallet_registries::Pallet::<T>::ensure_authorization_origin(
@@ -444,7 +446,7 @@ pub mod pallet {
 		pub fn reinstate(
 			origin: OriginFor<T>,
 			registry_entry_id: RegistryEntryIdOf,
-			authorization: AuthorizationIdOf,
+			authorization: RegistryAuthorizationIdOf,
 		) -> DispatchResult {
 			let updater = ensure_signed(origin)?;
 			let registry_id = pallet_registries::Pallet::<T>::ensure_authorization_origin(
@@ -521,9 +523,9 @@ pub mod pallet {
 		pub fn update_ownership(
 			origin: OriginFor<T>,
 			registry_entry_id: RegistryEntryIdOf,
-			authorization: AuthorizationIdOf,
+			authorization: RegistryAuthorizationIdOf,
 			new_owner: CreatorOf<T>,
-			new_owner_authorization: AuthorizationIdOf,
+			new_owner_authorization: RegistryAuthorizationIdOf,
 		) -> DispatchResult {
 			let updater = ensure_signed(origin)?;
 			let registry_id = pallet_registries::Pallet::<T>::ensure_authorization_origin(
