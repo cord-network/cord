@@ -62,15 +62,18 @@ pub fn generate_schema_id<T: Config>(digest: &SchemaHashOf<T>) -> SchemaIdOf {
 
 /// Generates a Namespace ID
 pub fn generate_namespace_id<T: Config>(digest: &NameSpaceCodeOf<T>) -> NameSpaceIdOf {
-	Ss58Identifier::create_identifier(&(digest).encode()[..], IdentifierType::Space).unwrap()
+	Ss58Identifier::create_identifier(&(digest).encode()[..], IdentifierType::NameSpace).unwrap()
 }
 
 /// Generates a Namespace Authorization ID
 pub fn generate_namespace_authorization_id<T: Config>(
 	digest: &NameSpaceCodeOf<T>,
 ) -> NamespaceAuthorizationIdOf {
-	Ss58Identifier::create_identifier(&(digest).encode()[..], IdentifierType::Authorization)
-		.unwrap()
+	Ss58Identifier::create_identifier(
+		&(digest).encode()[..],
+		IdentifierType::NameSpaceAuthorization,
+	)
+	.unwrap()
 }
 
 pub(crate) const ACCOUNT_00: AccountId = AccountId::new([1u8; 32]);

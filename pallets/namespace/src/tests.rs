@@ -7,13 +7,16 @@ use sp_std::prelude::*;
 
 /// Generate a namespace id from a digest.
 pub fn generate_namespace_id<T: Config>(digest: &NameSpaceCodeOf<T>) -> NameSpaceIdOf {
-	Ss58Identifier::create_identifier(&(digest).encode()[..], IdentifierType::Space).unwrap()
+	Ss58Identifier::create_identifier(&(digest).encode()[..], IdentifierType::NameSpace).unwrap()
 }
 
 /// Generate an authorization id from a digest.
 pub fn generate_authorization_id<T: Config>(digest: &NameSpaceCodeOf<T>) -> AuthorizationIdOf {
-	Ss58Identifier::create_identifier(&(digest).encode()[..], IdentifierType::Authorization)
-		.unwrap()
+	Ss58Identifier::create_identifier(
+		&(digest).encode()[..],
+		IdentifierType::NameSpaceAuthorization,
+	)
+	.unwrap()
 }
 
 pub(crate) const ACCOUNT_00: AccountId = AccountId::new([1u8; 32]);
