@@ -2035,3 +2035,119 @@ fn add_delegator_should_fail_if_registry_delegates_limit_exceeded() {
 		);
 	});
 }
+
+#[test]
+fn registry_id_should_be_updated_on_namespace_chainstorage_on_create() {
+	let creator = ACCOUNT_00;
+
+	let namespace = [2u8; 256].to_vec();
+	let namespace_digest = <Test as frame_system::Config>::Hashing::hash(&namespace.encode()[..]);
+
+	let id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&namespace_digest.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let namespace_id: NameSpaceIdOf = generate_namespace_id::<Test>(&id_digest);
+
+	let namespace_auth_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&namespace_id.encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let namespace_authorization_id: NamespaceAuthorizationIdOf =
+		generate_namespace_authorization_id::<Test>(&namespace_auth_id_digest);
+
+	let registry = [2u8; 256].to_vec();
+
+	let raw_blob = [2u8; 256].to_vec();
+	let blob: RegistryBlobOf<Test> = BoundedVec::try_from(raw_blob)
+		.expect("Test blob should fit into the expected input length of for the test runtime.");
+
+	let registry_digest = <Test as frame_system::Config>::Hashing::hash(&registry.encode()[..]);
+
+	let id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_digest.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+
+	let registry_id: RegistryIdOf = generate_registry_id::<Test>(&id_digest);
+
+	let registry_2 = [3u8; 256].to_vec();
+
+	let raw_blob_2 = [3u8; 256].to_vec();
+	let blob_2: RegistryBlobOf<Test> = BoundedVec::try_from(raw_blob_2)
+		.expect("Test blob should fit into the expected input length of for the test runtime.");
+
+	let registry_digest_2 = <Test as frame_system::Config>::Hashing::hash(&registry_2.encode()[..]);
+
+	let id_digest_2 = <Test as frame_system::Config>::Hashing::hash(
+		&[&registry_digest_2.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+
+	let registry_id_2: RegistryIdOf = generate_registry_id::<Test>(&id_digest_2);
+
+	let raw_schema = [2u8; 256].to_vec();
+	let schema: InputSchemaOf<Test> = BoundedVec::try_from(raw_schema)
+		.expect("Test Schema should fit into the expected input length of for the test runtime.");
+	let _digest: SchemaHashOf<Test> = <Test as frame_system::Config>::Hashing::hash(&schema[..]);
+	let schema_id_digest = <Test as frame_system::Config>::Hashing::hash(&schema.encode()[..]);
+	let schema_id: SchemaIdOf = generate_schema_id::<Test>(&schema_id_digest);
+
+	new_test_ext().execute_with(|| {
+		assert_ok!(NameSpace::create(
+			frame_system::RawOrigin::Signed(creator.clone()).into(),
+			namespace_digest,
+			None,
+		));
+
+		// Create Registry 1
+		assert_ok!(Registries::create(
+			frame_system::RawOrigin::Signed(creator.clone()).into(),
+			registry_digest,
+			namespace_authorization_id.clone(),
+			Some(schema_id.clone()),
+			Some(blob)
+		));
+
+		// Create Registry 2
+		assert_ok!(Registries::create(
+			frame_system::RawOrigin::Signed(creator.clone()).into(),
+			registry_digest_2,
+			namespace_authorization_id.clone(),
+			Some(schema_id),
+			Some(blob_2)
+		));
+
+		// Verify if the newly created registry-id is added as a list in the Namespace Chain
+		// Storage.
+		let name_space_details = pallet_namespace::NameSpaces::<Test>::get(namespace_id.clone())
+			.ok_or(pallet_namespace::pallet::Error::<Test>::NameSpaceNotFound)
+			.unwrap();
+		assert!(
+			name_space_details
+				.registry_ids
+				.clone()
+				.unwrap_or_default()
+				.contains(&registry_id),
+			"Registry ID 1 not found in the Namespace Chain Storage."
+		);
+		assert!(
+			name_space_details.registry_ids.unwrap_or_default().contains(&registry_id_2),
+			"Registry ID 2 not found in the Namespace Chain Storage."
+		);
+
+		// Verify if the newly created registry-id 1 is present in the Registry Chain Storage.
+		let registry_info = RegistryInfo::<Test>::get(&registry_id)
+			.ok_or(Error::<Test>::RegistryNotFound)
+			.unwrap();
+		assert_eq!(
+			registry_info.namespace_id, namespace_id,
+			"Namespace ID not found in the Registry 1 Chain Storage."
+		);
+
+		// Verify if the newly created registry-id 2 is present in the Registry Chain Storage.
+		let registry_info = RegistryInfo::<Test>::get(&registry_id_2)
+			.ok_or(Error::<Test>::RegistryNotFound)
+			.unwrap();
+		assert_eq!(
+			registry_info.namespace_id, namespace_id,
+			"Namespace ID not found in the Registry 2 Chain Storage."
+		);
+	});
+}

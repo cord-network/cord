@@ -78,7 +78,7 @@ pub struct NameSpaceDetails<NameSpaceHashOf, NameSpaceCreatorOf, StatusOf, Regis
 	pub digest: NameSpaceHashOf,
 	pub creator: NameSpaceCreatorOf,
 	pub archive: StatusOf,
-	pub registry_id: Option<RegistryIdOf>,
+	pub registry_ids: Option<RegistryIdOf>,
 }
 
 /// Authorization details for a namespace delegate.

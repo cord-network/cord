@@ -75,11 +75,12 @@ impl Default for Permissions {
 /// - `digest`: A hash representing unique content or metadata of the registry.
 /// - `schema_id`: (Optional) Identifier linking the registry to a specific schema.
 #[derive(Encode, Decode, Clone, MaxEncodedLen, RuntimeDebug, PartialEq, Eq, TypeInfo)]
-pub struct RegistryDetails<RegistryCreatorOf, StatusOf, RegistryHashOf, SchemaIdOf> {
+pub struct RegistryDetails<RegistryCreatorOf, StatusOf, RegistryHashOf, NameSpaceIdOf, SchemaIdOf> {
 	pub creator: RegistryCreatorOf,
 	pub revoked: StatusOf,
 	pub archived: StatusOf,
 	pub digest: RegistryHashOf,
+	pub namespace_id: NameSpaceIdOf,
 	pub schema_id: Option<SchemaIdOf>,
 }
 

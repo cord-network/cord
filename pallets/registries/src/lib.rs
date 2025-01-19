@@ -112,6 +112,8 @@ use sp_runtime::traits::{Hash, UniqueSaturatedInto};
 pub type RegistryAuthorizationIdOf = Ss58Identifier;
 /// Namespace Authorization Identifier
 pub type NamespaceAuthorizationIdOf = Ss58Identifier;
+/// Type of the Namespace Id
+pub type NameSpaceIdOf = Ss58Identifier;
 /// Type of the Registry Id
 pub type RegistryIdOf = Ss58Identifier;
 /// Tyoe of the Registry Digest
@@ -131,7 +133,7 @@ pub type RegistryAuthorizationOf<T> =
 	RegistryAuthorization<RegistryIdOf, RegistryCreatorOf<T>, Permissions>;
 /// Type of Registry Details
 pub type RegistryDetailsOf<T> =
-	RegistryDetails<RegistryCreatorOf<T>, StatusOf, RegistryHashOf<T>, SchemaIdOf>;
+	RegistryDetails<RegistryCreatorOf<T>, StatusOf, RegistryHashOf<T>, NameSpaceIdOf, SchemaIdOf>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -607,7 +609,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let creator = ensure_signed(origin)?;
 
-			let _namespace_id = pallet_namespace::Pallet::<T>::ensure_authorization_origin(
+			let namespace_id = pallet_namespace::Pallet::<T>::ensure_authorization_origin(
 				&namespace_authorization,
 				&creator,
 			)
@@ -669,9 +671,17 @@ pub mod pallet {
 					revoked: false,
 					archived: false,
 					digest,
+					namespace_id: namespace_id.clone(),
 					schema_id,
 				},
 			);
+
+			// Update the namespace with the newly added registry.
+			pallet_namespace::Pallet::<T>::add_registry_id_to_namespace_details(
+				&namespace_id,
+				&identifier,
+			)
+			.map_err(<pallet_namespace::Error<T>>::from)?;
 
 			Self::update_activity(&identifier, IdentifierTypeOf::Registries, CallTypeOf::Genesis)
 				.map_err(Error::<T>::from)?;

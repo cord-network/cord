@@ -266,6 +266,8 @@ pub mod pallet {
 		AuthorizationNotFound,
 		/// Delegate not found.
 		DelegateNotFound,
+		/// Namespace Registry list limit exceeded.
+		NameSpaceRegistryListLimitExceeded,
 	}
 
 	#[pallet::call]
@@ -571,7 +573,7 @@ pub mod pallet {
 					digest,
 					creator: creator.clone(),
 					archive: false,
-					registry_id: Some(BoundedVec::default()),
+					registry_ids: Some(BoundedVec::default()),
 				},
 			);
 
@@ -941,6 +943,57 @@ impl<T: Config> Pallet<T> {
 		ensure!(!namespace_details.archive, Error::<T>::ArchivedNameSpace);
 
 		Ok(())
+	}
+
+	/// Adds a registry ID to the list of registry IDs associated with a namespace.
+	///
+	/// This function updates the namespace's `registry_ids` list by appending the specified
+	/// `registry_id` if it is not already present. If the list is uninitialized (i.e., `None`),
+	/// it initializes the list and adds the `registry_id`. The function ensures that the
+	/// `BoundedVec` does not exceed its capacity, returning an error if the limit is reached.
+	///
+	/// # Parameters
+	/// - `namespace_id`: A reference to the ID of the namespace where the registry ID should be
+	///   added.
+	/// - `registry_id`: A reference to the registry ID to be added to the namespace's list of
+	///   registry IDs.
+	///
+	/// # Returns
+	/// - `Ok(())`: If the `registry_id` was successfully added or was already present in the list.
+	/// - `Err(Error<T>::NameSpaceNotFound)`: If the specified namespace does not exist.
+	/// - `Err(Error<T>::NameSpaceRegistryListLimitExceeded)`: If the `registry_ids` list exceeds
+	///   its maximum capacity while attempting to add the `registry_id`.
+	///
+	/// # Errors
+	/// - Returns `NameSpaceNotFound` if the `namespace_id` does not exist in the storage.
+	/// - Returns `NameSpaceRegistryListLimitExceeded` if the `registry_ids` list cannot accommodate
+	///   any more entries.
+	pub fn add_registry_id_to_namespace_details(
+		namespace_id: &NameSpaceIdOf,
+		registry_id: &RegistryIdOf,
+	) -> Result<(), Error<T>> {
+		NameSpaces::<T>::try_mutate(namespace_id, |space_opt| {
+			if let Some(space_details) = space_opt {
+				if let Some(ref mut registry_ids) = space_details.registry_ids {
+					if !registry_ids.contains(registry_id) {
+						registry_ids
+							.try_push(registry_id.clone())
+							.map_err(|_| Error::<T>::NameSpaceRegistryListLimitExceeded)?;
+					}
+				} else {
+					// Below is required to avoid runtime panic when intialized with None.
+					let mut new_registry_ids = BoundedVec::default();
+					new_registry_ids
+						.try_push(registry_id.clone())
+						.map_err(|_| Error::<T>::NameSpaceRegistryListLimitExceeded)?;
+					space_details.registry_ids = Some(new_registry_ids);
+				}
+
+				Ok(())
+			} else {
+				Err(Error::<T>::NameSpaceNotFound)
+			}
+		})
 	}
 
 	/// Updates the global timeline with a new activity event for a namespace.
