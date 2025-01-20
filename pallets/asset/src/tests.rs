@@ -3161,3 +3161,54 @@ fn asset_issue_should_fail_when_distribution_limit_exceeds() {
 		);
 	});
 }
+
+#[test]
+fn should_fail_for_invalid_asset_values() {
+	let (creator, author) = (DID_00, ACCOUNT_00);
+	let space_digest =
+		<Test as frame_system::Config>::Hashing::hash(&[2u8; 256].to_vec().encode()[..]);
+	let space_id = generate_space_id::<Test>(&<Test as frame_system::Config>::Hashing::hash(
+		&[&space_digest.encode()[..], &creator.encode()[..]].concat()[..],
+	));
+
+	let authorization_id =
+		generate_authorization_id::<Test>(&<Test as frame_system::Config>::Hashing::hash(
+			&[&space_id.encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()[..],
+		));
+
+	new_test_ext().execute_with(|| {
+		assert_ok!(Space::create(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			space_digest
+		));
+		assert_ok!(Space::approve(RawOrigin::Root.into(), space_id, 5u64));
+		let entry = AssetInputEntryOf::<Test> {
+			asset_desc: BoundedVec::try_from([72u8; 10].to_vec()).unwrap(),
+			asset_qty: 0,
+			asset_type: AssetTypeOf::MF,
+			asset_value: 0,
+			asset_tag: BoundedVec::try_from([72u8; 10].to_vec()).unwrap(),
+			asset_meta: BoundedVec::try_from([72u8; 10].to_vec()).unwrap(),
+		};
+
+		let digest =
+			<Test as frame_system::Config>::Hashing::hash(&[&entry.encode()[..]].concat()[..]);
+
+		assert_err!(
+			Asset::create(
+				DoubleOrigin(author.clone(), creator.clone()).into(),
+				entry,
+				digest,
+				authorization_id.clone()
+			),
+			Error::<Test>::InvalidAssetValue
+		);
+		let vc_digest =
+			<Test as frame_system::Config>::Hashing::hash(&[&0u64.encode()[..]].concat()[..]);
+
+		assert_err!(
+			Asset::vc_create(DoubleOrigin(author, creator).into(), 0, vc_digest, authorization_id),
+			Error::<Test>::InvalidAssetQty
+		);
+	});
+}
