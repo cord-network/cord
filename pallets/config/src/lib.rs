@@ -26,7 +26,7 @@ use alloc::{str, vec::Vec};
 use bs58;
 use codec::{Decode, Encode, MaxEncodedLen};
 use cord_primitives::{Id as NetworkId, NetworkInfoProvider};
-use cord_uri::Ss58Identifier;
+use cord_uri::{Identifier, Ss58Identifier};
 use fluent_uri::Uri;
 use frame_support::{
 	pallet_prelude::*,
@@ -35,7 +35,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use frame_system::pallet_prelude::*;
-use sp_runtime::traits::Zero;
+use sp_runtime::traits::{Hash, Zero};
 
 pub use pallet::*;
 
@@ -44,6 +44,7 @@ pub type IdentifierOf = Ss58Identifier;
 pub(crate) type CordAccountOf<T> = <T as frame_system::Config>::AccountId;
 pub type HashOf<T> = <T as frame_system::Config>::Hash;
 pub(crate) type NetworkName = BoundedVec<u8, ConstU32<64>>;
+pub(crate) type DataNodeId = BoundedVec<u8, ConstU32<50>>;
 pub(crate) type NetworkEndpoints = BoundedVec<BoundedVec<u8, ConstU32<256>>, ConstU32<50>>;
 pub(crate) type NetworkWebsite = Option<BoundedVec<u8, ConstU32<256>>>;
 pub(crate) type NetworkToken = BoundedVec<u8, ConstU32<142>>;
@@ -91,6 +92,10 @@ pub mod pallet {
 		InvalidIdentifierLength,
 		/// The network configuration has already been added.
 		NetworkConfigAlreadyAdded,
+		/// The storage configuration has already been added.
+		StorageConfigAlreadyAdded,
+		/// The storage configuration not found.
+		StorageConfigNotFound,
 		/// The provided token is invalid.
 		InvalidToken,
 		/// The cord genesis head is invalid or corrupted.
@@ -125,6 +130,19 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type NetworkPermissioned<T> = StorageValue<_, bool, ValueQuery>;
 
+	#[pallet::storage]
+	pub type StorageNodeConfigInfo<T> = StorageMap<
+		_,
+		Blake2_128Concat,
+		IdentifierOf,
+		(DataNodeId, CordAccountOf<T>, bool),
+		OptionQuery,
+	>;
+
+	#[pallet::storage]
+	pub type StorageNodes<T> =
+		StorageMap<_, Blake2_128Concat, DataNodeId, (IdentifierOf, CordAccountOf<T>), OptionQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -144,6 +162,18 @@ pub mod pallet {
 		},
 		NetworkRpcRemove {
 			network: NetworkId,
+		},
+		StorageNodeAdded {
+			identifier: IdentifierOf,
+			node: DataNodeId,
+		},
+		StorageNodeUpdated {
+			identifier: IdentifierOf,
+			node: DataNodeId,
+		},
+		StorageNodeRemoved {
+			identifier: IdentifierOf,
+			node: DataNodeId,
 		},
 	}
 
@@ -385,6 +415,122 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		#[pallet::call_index(6)]
+		#[pallet::weight({200_000})]
+		pub fn add_storage_node(
+			origin: OriginFor<T>,
+			node_id: Vec<u8>,
+			author: CordAccountOf<T>,
+		) -> DispatchResult {
+			T::NetworkConfigOrigin::ensure_origin(origin)?;
+
+			let bounded_node_id = BoundedVec::<u8, ConstU32<50>>::try_from(node_id)
+				.map_err(|_| Error::<T>::InvalidInput)?;
+
+			let pallet_name = <Self as PalletInfoAccess>::name();
+			let digest = <T as frame_system::Config>::Hashing::hash(
+				&[&bounded_node_id.encode()[..], &author.encode()[..]].concat()[..],
+			);
+
+			let identifier =
+				<cord_uri::Pallet<T> as Identifier>::build(&(digest).encode()[..], pallet_name)
+					.map_err(|_| Error::<T>::InvalidIdentifierLength)?;
+
+			ensure!(
+				!StorageNodeConfigInfo::<T>::contains_key(&identifier),
+				Error::<T>::StorageConfigAlreadyAdded
+			);
+
+			StorageNodeConfigInfo::<T>::insert(&identifier, (&bounded_node_id, &author, true));
+			StorageNodes::<T>::insert(&bounded_node_id, (&identifier, &author));
+
+			Self::deposit_event(Event::StorageNodeAdded {
+				identifier,
+				node: bounded_node_id.clone(),
+			});
+
+			Ok(())
+		}
+
+		#[pallet::call_index(7)]
+		#[pallet::weight({200_000})]
+		pub fn update_storage_node_info(
+			origin: OriginFor<T>,
+			identifier: IdentifierOf,
+			node_id: Option<Vec<u8>>,
+			author: Option<CordAccountOf<T>>,
+		) -> DispatchResult {
+			T::NetworkConfigOrigin::ensure_origin(origin)?;
+
+			ensure!(node_id.is_some() || author.is_some(), Error::<T>::InvalidInput);
+
+			let (existing_node_id, existing_author, _active) =
+				StorageNodeConfigInfo::<T>::get(&identifier)
+					.ok_or(Error::<T>::StorageConfigNotFound)?;
+
+			let mut updated_node_id = existing_node_id.clone();
+
+			if let Some(ref new_node_id) = node_id {
+				let bounded_node_id = BoundedVec::<u8, ConstU32<50>>::try_from(new_node_id.clone())
+					.map_err(|_| Error::<T>::InvalidInput)?;
+				updated_node_id = bounded_node_id;
+
+				ensure!(
+					!StorageNodes::<T>::contains_key(&updated_node_id),
+					Error::<T>::StorageConfigAlreadyAdded
+				);
+			}
+
+			let updated_author = author.unwrap_or(existing_author);
+
+			StorageNodeConfigInfo::<T>::insert(
+				&identifier,
+				(&updated_node_id, &updated_author, true),
+			);
+			StorageNodes::<T>::insert(&updated_node_id, (&identifier, &updated_author));
+
+			if node_id.is_some() && existing_node_id != updated_node_id {
+				StorageNodes::<T>::remove(&existing_node_id);
+			}
+
+			Self::deposit_event(Event::StorageNodeUpdated {
+				identifier,
+				node: updated_node_id.clone(),
+			});
+
+			Ok(())
+		}
+
+		#[pallet::call_index(8)]
+		#[pallet::weight({200_000})]
+		pub fn remove_storage_node(origin: OriginFor<T>, node_id: Vec<u8>) -> DispatchResult {
+			T::NetworkConfigOrigin::ensure_origin(origin)?;
+
+			let bounded_node_id = BoundedVec::<u8, ConstU32<50>>::try_from(node_id)
+				.map_err(|_| Error::<T>::InvalidInput)?;
+
+			let (identifier, _author) = StorageNodes::<T>::get(&bounded_node_id)
+				.ok_or(Error::<T>::StorageConfigNotFound)?;
+
+			let (existing_node_id, existing_author, _active) =
+				StorageNodeConfigInfo::<T>::get(&identifier)
+					.ok_or(Error::<T>::StorageConfigNotFound)?;
+
+			StorageNodes::<T>::remove(&bounded_node_id);
+
+			StorageNodeConfigInfo::<T>::insert(
+				&identifier,
+				(&existing_node_id, &existing_author, false),
+			);
+
+			Self::deposit_event(Event::StorageNodeRemoved {
+				identifier,
+				node: bounded_node_id.clone(),
+			});
+
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -516,5 +662,69 @@ impl<T: Config> Pallet<T> {
 impl<T: Config> cord_primitives::IsPermissioned for Pallet<T> {
 	fn is_permissioned() -> bool {
 		Self::is_permissioned()
+	}
+}
+
+pub trait StorageNodeInterface {
+	type AccountId;
+	type NodeId;
+	type Identifier;
+
+	/// Get the details of a storage node by its `node_id`.
+	fn get_storage_node_details(
+		node_id: Self::NodeId,
+	) -> Option<(Self::Identifier, Self::AccountId, bool)>;
+
+	/// Get the details of a storage node by its `identifier`.
+	fn get_storage_node_details_by_identifier(
+		identifier: Self::Identifier,
+	) -> Option<(Self::NodeId, Self::AccountId, bool)>;
+
+	/// Check if a storage node is active by its `node_id`.
+	fn is_storage_node_active(node_id: Self::NodeId) -> bool;
+
+	/// Check if a storage node is active by its `identifier`.
+	fn is_storage_node_active_by_identifier(identifier: Self::Identifier) -> bool;
+}
+
+impl<T: Config> StorageNodeInterface for Pallet<T> {
+	type AccountId = T::AccountId;
+	type NodeId = BoundedVec<u8, ConstU32<50>>;
+	type Identifier = IdentifierOf;
+
+	/// Get the details of a storage node by its `node_id`.
+	fn get_storage_node_details(
+		node_id: Self::NodeId,
+	) -> Option<(Self::Identifier, Self::AccountId, bool)> {
+		if let Some((identifier, author)) = StorageNodes::<T>::get(&node_id) {
+			if let Some((_, _, active)) = StorageNodeConfigInfo::<T>::get(&identifier) {
+				return Some((identifier, author, active));
+			}
+		}
+		None
+	}
+	/// Get the details of a storage node by its `identifier`.
+	fn get_storage_node_details_by_identifier(
+		identifier: Self::Identifier,
+	) -> Option<(Self::NodeId, Self::AccountId, bool)> {
+		StorageNodeConfigInfo::<T>::get(&identifier)
+	}
+
+	/// Check if a storage node is active by its `node_id`.
+	fn is_storage_node_active(node_id: Self::NodeId) -> bool {
+		if let Some((identifier, _)) = StorageNodes::<T>::get(&node_id) {
+			if let Some((_, _, active)) = StorageNodeConfigInfo::<T>::get(&identifier) {
+				return active;
+			}
+		}
+		false
+	}
+
+	/// Check if a storage node is active by its `identifier`.
+	fn is_storage_node_active_by_identifier(identifier: Self::Identifier) -> bool {
+		if let Some((_, _, active)) = StorageNodeConfigInfo::<T>::get(&identifier) {
+			return active;
+		}
+		false
 	}
 }
