@@ -78,7 +78,7 @@ use sp_runtime::{
 		SaturatedConversion, StaticLookup,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill,
+	ApplyExtrinsicResult, FixedU128, MultiSignature, MultiSigner, Perbill, Percent, Permill,
 };
 
 #[cfg(any(feature = "std", test))]
@@ -1447,6 +1447,35 @@ impl pallet_config::Config for Runtime {
 
 impl cord_uri::Config for Runtime {}
 
+pub type MetaTxExtension = (
+	pallet_verify_signature::VerifySignature<Runtime>,
+	pallet_meta_tx::MetaTxMarker<Runtime>,
+	frame_system::CheckNonZeroSender<Runtime>,
+	frame_system::CheckSpecVersion<Runtime>,
+	frame_system::CheckTxVersion<Runtime>,
+	frame_system::CheckGenesis<Runtime>,
+	frame_system::CheckMortality<Runtime>,
+	frame_system::CheckNonce<Runtime>,
+	frame_metadata_hash_extension::CheckMetadataHash<Runtime>,
+);
+
+impl pallet_meta_tx::Config for Runtime {
+	type WeightInfo = weights::pallet_meta_tx::WeightInfo<Runtime>;
+	type RuntimeEvent = RuntimeEvent;
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type Extension = MetaTxExtension;
+	#[cfg(feature = "runtime-benchmarks")]
+	type Extension = pallet_meta_tx::WeightlessExtension<Runtime>;
+}
+
+impl pallet_verify_signature::Config for Runtime {
+	type Signature = MultiSignature;
+	type AccountIdentifier = MultiSigner;
+	type WeightInfo = weights::pallet_verify_signature::WeightInfo<Runtime>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = ();
+}
+
 parameter_types! {
 	pub MbmServiceWeight: Weight = Perbill::from_percent(80) * BlockWeights::get().max_block;
 }
@@ -1639,6 +1668,12 @@ mod runtime {
 	#[runtime::pallet_index(104)]
 	pub type RootTesting = pallet_root_testing::Pallet<Runtime>;
 
+	#[runtime::pallet_index(105)]
+	pub type MetaTx = pallet_meta_tx::Pallet<Runtime>;
+
+	#[runtime::pallet_index(106)]
+	pub type VerifySignature = pallet_verify_signature::Pallet<Runtime>;
+
 	#[runtime::pallet_index(255)]
 	pub type Sudo = pallet_sudo::Pallet<Runtime>;
 }
@@ -1825,6 +1860,8 @@ mod benches {
 		[pallet_utility, Utility]
 		[pallet_tx_pause, TxPause]
 		[pallet_safe_mode, SafeMode]
+		[pallet_meta_tx, MetaTx]
+		[pallet_verify_signature, VerifySignature]
 	);
 }
 

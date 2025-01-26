@@ -102,6 +102,7 @@ pallet-indices = { workspace = true }
 pallet-insecure-randomness-collective-flip = { workspace = true }
 pallet-membership = { workspace = true }
 pallet-message-queue = { workspace = true }
+pallet-meta-tx = { workspace = true }
 pallet-migrations = { workspace = true }
 pallet-mmr = { workspace = true }
 pallet-multisig = { workspace = true }
@@ -134,6 +135,7 @@ pallet-transaction-payment-rpc-runtime-api = { workspace = true }
 pallet-treasury = { workspace = true }
 pallet-tx-pause = { workspace = true }
 pallet-utility = { workspace = true }
+pallet-verify-signature = { workspace = true }
 
 frame-benchmarking-pallet-pov = { workspace = true }
 frame-benchmarking = { workspace = true }
@@ -212,6 +214,7 @@ std = [
 	"pallet-insecure-randomness-collective-flip/std",
 	"pallet-membership/std",
 	"pallet-message-queue/std",
+	"pallet-meta-tx/std",
 	"pallet-migrations/std",
 	"pallet-mmr/std",
 	"pallet-multisig/std",
@@ -243,6 +246,7 @@ std = [
 	"pallet-treasury/std",
 	"pallet-tx-pause/std",
 	"pallet-utility/std",
+	"pallet-verify-signature/std",
 	"primitive-types/std",
 	"scale-info/std",
 	"serde/std",
@@ -303,6 +307,7 @@ runtime-benchmarks = [
 	"pallet-indices/runtime-benchmarks",
 	"pallet-membership/runtime-benchmarks",
 	"pallet-message-queue/runtime-benchmarks",
+	"pallet-meta-tx/runtime-benchmarks",
 	"pallet-migrations/runtime-benchmarks",
 	"pallet-mmr/runtime-benchmarks",
 	"pallet-multisig/runtime-benchmarks",
@@ -324,6 +329,7 @@ runtime-benchmarks = [
 	"pallet-treasury/runtime-benchmarks",
 	"pallet-tx-pause/runtime-benchmarks",
 	"pallet-utility/runtime-benchmarks",
+	"pallet-verify-signature/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 	"sp-staking/runtime-benchmarks",
 ]
@@ -357,6 +363,7 @@ try-runtime = [
 	"pallet-insecure-randomness-collective-flip/try-runtime",
 	"pallet-membership/try-runtime",
 	"pallet-message-queue/try-runtime",
+	"pallet-meta-tx/try-runtime",
 	"pallet-migrations/try-runtime",
 	"pallet-mmr/try-runtime",
 	"pallet-multisig/try-runtime",
@@ -378,6 +385,7 @@ try-runtime = [
 	"pallet-treasury/try-runtime",
 	"pallet-tx-pause/try-runtime",
 	"pallet-utility/try-runtime",
+	"pallet-verify-signature/try-runtime",
 	"sp-runtime/try-runtime",
 ]
 
