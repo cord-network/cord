@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with CORD. If not, see <https://www.gnu.org/licenses/>.
 //
-//! # Registry Management Module Types
+//! # Space Management Module Types
 //!
-//! This module defines types used for managing registries within the blockchain,
-//! including permissions, registry details, and registry authorizations.
+//! This module defines types used for managing spaces within the blockchain,
+//! including permissions, space details, and space authorizations.
 
 use bitflags::bitflags;
 use codec::{Decode, Encode, MaxEncodedLen};
@@ -62,44 +62,41 @@ impl Default for Permissions {
 	}
 }
 
-/// Details of an on-chain registry.
+/// Details of an on-chain namespace.
 ///
-/// This struct stores metadata about a registry, including information about
-/// its creator, status, and linkage to a schema. It helps in tracking the
-/// governance and operational state of the registry.
-///
-/// # Fields
-/// - `creator`: The account or entity responsible for creating the registry.
-/// - `revoked`: Status indicating if the registry has been revoked.
-/// - `archived`: Flag showing whether the registry is archived.
-/// - `digest`: A hash representing unique content or metadata of the registry.
-/// - `schema_id`: (Optional) Identifier linking the registry to a specific schema.
-#[derive(Encode, Decode, Clone, MaxEncodedLen, RuntimeDebug, PartialEq, Eq, TypeInfo)]
-pub struct RegistryDetails<RegistryCreatorOf, StatusOf, RegistryHashOf, NameSpaceIdOf, SchemaIdOf> {
-	pub creator: RegistryCreatorOf,
-	pub revoked: StatusOf,
-	pub archived: StatusOf,
-	pub digest: RegistryHashOf,
-	pub namespace_id: NameSpaceIdOf,
-	pub schema_id: Option<SchemaIdOf>,
-}
-
-/// Authorization details for a registry delegate.
-///
-/// This structure defines the permissions granted to a delegate within a registry,
-/// as well as the delegator who granted these permissions. It is used to manage
-/// and verify the actions that delegates are allowed to perform within a registry.
+/// This structure holds metadata about a namespace, including its identifier,
+/// creator, capacity, and current usage. It also tracks the approval and
+/// archival status of the namespace.
 ///
 /// ## Fields
 ///
-/// - `registry_id`: The identifier of the registry to which the authorization applies.
-/// - `delegate`: The entity that has been granted permissions within the registry.
+/// - `code`: The unique code or identifier for the namespace.
+/// - `creator`: The account or entity that created the namespace.
+/// - `archive`: Indicates whether the namespace is currently archived.
+#[derive(Encode, Decode, Clone, MaxEncodedLen, RuntimeDebug, PartialEq, Eq, TypeInfo)]
+pub struct NameSpaceDetails<NameSpaceHashOf, NameSpaceCreatorOf, StatusOf, RegistryIdOf> {
+	pub digest: NameSpaceHashOf,
+	pub creator: NameSpaceCreatorOf,
+	pub archive: StatusOf,
+	pub registry_ids: Option<RegistryIdOf>,
+}
+
+/// Authorization details for a namespace delegate.
+///
+/// This structure defines the permissions granted to a delegate within a namespace,
+/// as well as the delegator who granted these permissions. It is used to manage
+/// and verify the actions that delegates are allowed to perform within a namespace.
+///
+/// ## Fields
+///
+/// - `namespace_id`: The identifier of the namespace to which the authorization applies.
+/// - `delegate`: The entity that has been granted permissions within the namespace.
 /// - `permissions`: The specific permissions granted to the delegate.
 /// - `delegator`: The entity that granted the permissions to the delegates
 #[derive(Encode, Decode, Clone, MaxEncodedLen, RuntimeDebug, PartialEq, Eq, TypeInfo)]
-pub struct RegistryAuthorization<RegistryIdOf, RegistryCreatorOf, Permissions> {
-	pub registry_id: RegistryIdOf,
-	pub delegate: RegistryCreatorOf,
+pub struct NameSpaceAuthorization<NameSpaceIdOf, NameSpaceCreatorOf, Permissions> {
+	pub namespace_id: NameSpaceIdOf,
+	pub delegate: NameSpaceCreatorOf,
 	pub permissions: Permissions,
-	pub delegator: RegistryCreatorOf,
+	pub delegator: NameSpaceCreatorOf,
 }

@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with CORD. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet_registries;
+use crate as pallet_namespace;
 use cord_utilities::mock::{mock_origin, SubjectId};
 use frame_support::{derive_impl, parameter_types};
+use pallet_namespace::IsPermissioned;
 
 use frame_system::EnsureRoot;
-use pallet_namespace::IsPermissioned;
 use sp_runtime::{
 	traits::{IdentifyAccount, IdentityLookup, Verify},
 	BuildStorage, MultiSignature,
@@ -35,9 +35,7 @@ pub(crate) type Block = frame_system::mocking::MockBlock<Test>;
 frame_support::construct_runtime!(
 	pub enum Test {
 		System: frame_system,
-		SchemaAccounts: pallet_schema_accounts,
 		NameSpace: pallet_namespace,
-		Registries: pallet_registries,
 		Identifier: identifier,
 		MockOrigin: mock_origin,
 	}
@@ -63,10 +61,6 @@ impl mock_origin::Config for Test {
 	type SubjectId = SubjectId;
 }
 
-parameter_types! {
-	pub const MaxEncodedSchemaLength: u32 = 15_360;
-}
-
 pub struct NetworkPermission;
 impl IsPermissioned for NetworkPermission {
 	fn is_permissioned() -> bool {
@@ -89,36 +83,28 @@ impl pallet_namespace::Config for Test {
 	type WeightInfo = ();
 }
 
-impl pallet_schema_accounts::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
-	type MaxEncodedSchemaLength = MaxEncodedSchemaLength;
-	type WeightInfo = ();
-}
-
-parameter_types! {
-	#[derive(Debug, Clone)]
-	pub const MaxRegistryDelegates: u32 = 5u32;
-}
-
-parameter_types! {
-	pub const MaxRegistryBlobSize: u32 = 4 * 1024;
-	pub const MaxEncodedInputLength: u32 = 30;
-}
-
-impl pallet_registries::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
-	type MaxRegistryDelegates = MaxRegistryDelegates;
-	type MaxEncodedInputLength = MaxEncodedInputLength;
-	type MaxRegistryBlobSize = MaxRegistryBlobSize;
-	type WeightInfo = ();
-}
-
 parameter_types! {
 	pub const MaxEventsHistory: u32 = 6u32;
 }
 
 impl identifier::Config for Test {
 	type MaxEventsHistory = MaxEventsHistory;
+}
+
+parameter_types! {
+	storage NameSpaceEvents: u32 = 0;
+}
+
+/// All events of this pallet.
+pub fn space_events_since_last_call() -> Vec<super::Event<Test>> {
+	let events = System::events()
+		.into_iter()
+		.map(|r| r.event)
+		.filter_map(|e| if let RuntimeEvent::NameSpace(inner) = e { Some(inner) } else { None })
+		.collect::<Vec<_>>();
+	let already_seen = NameSpaceEvents::get();
+	NameSpaceEvents::set(&(events.len() as u32));
+	events.into_iter().skip(already_seen as usize).collect()
 }
 
 #[allow(dead_code)]

@@ -42,6 +42,7 @@ cord-runtime-common = { workspace = true }
 pallet-config = { workspace = true }
 cord-uri = { workspace = true }
 
+
 # Substrate
 sp-api = { workspace = true }
 sp-application-crypto = { workspace = true }
@@ -165,7 +166,6 @@ substrate-wasm-builder = { workspace = true, optional = true, default-features =
 
 [features]
 default = ['std']
-no_std = []
 std = [
 	"bs58/std",
 	"blake2/std",
@@ -333,6 +333,7 @@ runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",
 	"sp-staking/runtime-benchmarks",
 ]
+no_std = []
 
 try-runtime = [
 	"frame-executive/try-runtime",

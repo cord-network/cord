@@ -108,8 +108,12 @@ use identifier::{
 };
 use sp_runtime::traits::{Hash, UniqueSaturatedInto};
 
-/// Authorization Identifier
-pub type AuthorizationIdOf = Ss58Identifier;
+/// Registry Authorization Identifier
+pub type RegistryAuthorizationIdOf = Ss58Identifier;
+/// Namespace Authorization Identifier
+pub type NamespaceAuthorizationIdOf = Ss58Identifier;
+/// Type of the Namespace Id
+pub type NameSpaceIdOf = Ss58Identifier;
 /// Type of the Registry Id
 pub type RegistryIdOf = Ss58Identifier;
 /// Tyoe of the Registry Digest
@@ -129,7 +133,7 @@ pub type RegistryAuthorizationOf<T> =
 	RegistryAuthorization<RegistryIdOf, RegistryCreatorOf<T>, Permissions>;
 /// Type of Registry Details
 pub type RegistryDetailsOf<T> =
-	RegistryDetails<RegistryCreatorOf<T>, StatusOf, RegistryHashOf<T>, SchemaIdOf>;
+	RegistryDetails<RegistryCreatorOf<T>, StatusOf, RegistryHashOf<T>, NameSpaceIdOf, SchemaIdOf>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -146,7 +150,7 @@ pub mod pallet {
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + identifier::Config {
+	pub trait Config: frame_system::Config + pallet_namespace::Config + identifier::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		#[pallet::constant]
@@ -178,8 +182,13 @@ pub mod pallet {
 	/// Registry authorizations stored on-chain.
 	/// It maps from an identifier to delegates.
 	#[pallet::storage]
-	pub type Authorizations<T> =
-		StorageMap<_, Blake2_128Concat, AuthorizationIdOf, RegistryAuthorizationOf<T>, OptionQuery>;
+	pub type Authorizations<T> = StorageMap<
+		_,
+		Blake2_128Concat,
+		RegistryAuthorizationIdOf,
+		RegistryAuthorizationOf<T>,
+		OptionQuery,
+	>;
 
 	/// Registry delegates stored on chain.
 	/// It maps from an identifier to a  bounded vec of delegates and
@@ -197,21 +206,21 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A new registry authorization has been added.
-		/// \[registry identifier, authorization,  delegate\]
+		/// \[registry identifier, registry authorization, delegate\]
 		Authorization {
 			registry_id: RegistryIdOf,
-			authorization: AuthorizationIdOf,
+			authorization: RegistryAuthorizationIdOf,
 			delegate: RegistryCreatorOf<T>,
 		},
 		/// A registry authorization has been removed.
 		/// \[registry identifier, authorization, ]
-		Deauthorization { registry_id: RegistryIdOf, authorization: AuthorizationIdOf },
+		Deauthorization { registry_id: RegistryIdOf, authorization: RegistryAuthorizationIdOf },
 		/// A new registry has been created.
-		/// \[registry identifier, creator, authorization\]
+		/// \[registry identifier, creator, registry authorization\]
 		Create {
 			registry_id: RegistryIdOf,
 			creator: RegistryCreatorOf<T>,
-			authorization: AuthorizationIdOf,
+			authorization: RegistryAuthorizationIdOf,
 		},
 		/// A registry has been revoked.
 		/// \[registry identifier, authority\]
@@ -220,17 +229,17 @@ pub mod pallet {
 		/// \[registry identifier,  authority\]
 		Reinstate { registry_id: RegistryIdOf, authority: RegistryCreatorOf<T> },
 		/// A existing registry has been updated.
-		/// \[registry identifier, updater, authorization\]
+		/// \[registry identifier, updater, registry authorization\]
 		Update {
 			registry_id: RegistryIdOf,
 			updater: RegistryCreatorOf<T>,
-			authorization: AuthorizationIdOf,
+			authorization: RegistryAuthorizationIdOf,
 		},
 		/// A registry has been archived.
-		/// \[registry identifier,  authority\]
+		/// \[registry identifier, authority\]
 		Archive { registry_id: RegistryIdOf, authority: RegistryCreatorOf<T> },
 		/// A registry has been restored.
-		/// \[registry identifier, authority\]
+		/// \[registry identifier,authority\]
 		Restore { registry_id: RegistryIdOf, authority: RegistryCreatorOf<T> },
 	}
 
@@ -289,8 +298,10 @@ pub mod pallet {
 		///   added.
 		/// - `delegate`: The account identifier of the delegate being granted the `ASSERT`
 		///   permission.
-		/// - `authorization`: The authorization ID used to validate the caller's permission to add
-		///   a delegate.
+		/// - `namespace_authorization`: The Namespace authorization ID used to validate the
+		///   caller's permission inside a namespace.
+		/// - `registry_authorization`: The authorization ID used to validate the caller's
+		///   permission to add a delegate.
 		///
 		/// # Returns
 		/// Returns `Ok(())` if the delegate is successfully added with `ASSERT`
@@ -307,12 +318,21 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
 			delegate: RegistryCreatorOf<T>,
-			authorization: AuthorizationIdOf,
+			namespace_authorization: NamespaceAuthorizationIdOf,
+			registry_authorization: RegistryAuthorizationIdOf,
 		) -> DispatchResult {
 			let creator = ensure_signed(origin)?;
 
+			// Verify Namespace Authorization
+			let _namespace_id = pallet_namespace::Pallet::<T>::ensure_authorization_origin(
+				&namespace_authorization,
+				&creator,
+			)
+			.map_err(<pallet_namespace::Error<T>>::from)?;
+
+			// Verify Registry Authorization
 			let auth_registry_id =
-				Self::ensure_authorization_delegator_origin(&authorization, &creator)?;
+				Self::ensure_authorization_delegator_origin(&registry_authorization, &creator)?;
 			ensure!(auth_registry_id == registry_id, Error::<T>::UnauthorizedOperation);
 
 			let permissions = Permissions::ASSERT;
@@ -339,8 +359,10 @@ pub mod pallet {
 		/// - `registry_id`: The unique identifier of the registry to which the admin delegate is
 		///   being added.
 		/// - `delegate`: The account identifier of the delegate being granted admin permissions.
-		/// - `authorization`: The authorization ID used to validate the caller's permission to add
-		///   an admin delegate to the specified registry.
+		/// - `namespace_authorization`: The Namespace authorization ID used to validate the
+		///   caller's permission inside a namespace.
+		/// - `registry_authorization`: The authorization ID used to validate the caller's
+		///   permission to add an admin delegate to the specified registry.
 		///
 		/// # Returns
 		/// Returns `Ok(())` if the admin delegate is successfully added, or an `Err`
@@ -357,12 +379,23 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
 			delegate: RegistryCreatorOf<T>,
-			authorization: AuthorizationIdOf,
+			namespace_authorization: NamespaceAuthorizationIdOf,
+			registry_authorization: RegistryAuthorizationIdOf,
 		) -> DispatchResult {
 			let creator = ensure_signed(origin)?;
 
+			// Verify Namespace Authorization
+			// TODO: Revist where admin permission of namespace is required.
+			// For now keeping everything under normal `ASSERT` permission.
+			let _namespace_id = pallet_namespace::Pallet::<T>::ensure_authorization_origin(
+				&namespace_authorization,
+				&creator,
+			)
+			.map_err(<pallet_namespace::Error<T>>::from)?;
+
+			// Verify Registry Authorization
 			let auth_registry_id =
-				Self::ensure_authorization_admin_origin(&authorization, &creator)?;
+				Self::ensure_authorization_admin_origin(&registry_authorization, &creator)?;
 
 			ensure!(auth_registry_id == registry_id, Error::<T>::UnauthorizedOperation);
 
@@ -388,8 +421,10 @@ pub mod pallet {
 		/// - `registry_id`: The unique identifier of the registry to which the audit delegate is
 		///   being added.
 		/// - `delegate`: The account identifier of the delegate being granted audit permissions.
-		/// - `authorization`: The authorization ID used to validate the caller's permission to add
-		///   the audit delegate.
+		/// - `namespace_authorization`: The Namespace authorization ID used to validate the
+		///   caller's permission inside a namespace.
+		/// - `registry_authorization`: The authorization ID used to validate the caller's
+		///   permission to add the audit delegate.
 		///
 		/// # Returns
 		/// Returns `Ok(())` if the audit delegate is successfully added, or an `Err`
@@ -406,12 +441,22 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
 			delegate: RegistryCreatorOf<T>,
-			authorization: AuthorizationIdOf,
+			namespace_authorization: NamespaceAuthorizationIdOf,
+			registry_authorization: RegistryAuthorizationIdOf,
 		) -> DispatchResult {
 			let creator = ensure_signed(origin)?;
 
+			// Verify Namespace Authorization
+			// TODO: Revist where admin permission of namespace is required.
+			// For now keeping everything under normal `ASSERT` permission.
+			let _namespace_id = pallet_namespace::Pallet::<T>::ensure_authorization_origin(
+				&namespace_authorization,
+				&creator,
+			)
+			.map_err(<pallet_namespace::Error<T>>::from)?;
+
 			let auth_registry_id =
-				Self::ensure_authorization_admin_origin(&authorization, &creator)?;
+				Self::ensure_authorization_admin_origin(&registry_authorization, &creator)?;
 
 			ensure!(auth_registry_id == registry_id, Error::<T>::UnauthorizedOperation);
 
@@ -435,8 +480,10 @@ pub mod pallet {
 		/// - `registry_id`: The unique identifier of the registry from which the delegate is being
 		///   removed.
 		/// - `remove_authorization`: The authorization ID of the delegate to be removed.
-		/// - `authorization`: The authorization ID validating the caller’s permission to perform
-		///   the removal.
+		/// - `namespace_authorization`: The Namespace authorization ID used to validate the
+		///   caller's permission inside a namespace.
+		/// - `registry_authorization`: The authorization ID validating the caller’s permission to
+		///   perform the removal.
 		///
 		/// # Returns
 		/// - `DispatchResult`: Returns `Ok(())` if the delegate was successfully removed, or an
@@ -461,16 +508,30 @@ pub mod pallet {
 		pub fn remove_delegate(
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
-			remove_authorization: AuthorizationIdOf,
-			authorization: AuthorizationIdOf,
+			remove_authorization: RegistryAuthorizationIdOf,
+			namespace_authorization: NamespaceAuthorizationIdOf,
+			registry_authorization: RegistryAuthorizationIdOf,
 		) -> DispatchResult {
 			let creator = ensure_signed(origin)?;
+
+			// Verify Namespace Authorization
+			// TODO: Revist where admin permission of namespace is required.
+			// For now keeping everything under normal `ASSERT` permission.
+			let _namespace_id = pallet_namespace::Pallet::<T>::ensure_authorization_origin(
+				&namespace_authorization,
+				&creator,
+			)
+			.map_err(<pallet_namespace::Error<T>>::from)?;
+
 			let auth_registry_id =
-				Self::ensure_authorization_admin_remove_origin(&authorization, &creator)?;
+				Self::ensure_authorization_admin_remove_origin(&registry_authorization, &creator)?;
 
 			// Ensure remover does not de-delagate themselves &
 			// remover has valid authoirzation for this particular registry-id.
-			ensure!(authorization != remove_authorization, Error::<T>::UnauthorizedOperation);
+			ensure!(
+				registry_authorization != remove_authorization,
+				Error::<T>::UnauthorizedOperation
+			);
 			ensure!(auth_registry_id == registry_id, Error::<T>::UnauthorizedOperation);
 
 			// Ensure the authorization exists and retrieve its details.
@@ -514,8 +575,9 @@ pub mod pallet {
 		///
 		/// # Parameters
 		/// - `origin`: The origin of the transaction, signed by the creator.
-		/// - `registry_id`: A unique code created to identify the registry.
 		/// - `digest`: The digest representing the registry data to be created.
+		/// - `namespace_authorization`: The Namespace authorization ID used to validate the
+		///   caller's permission inside a namespace.
 		/// - `schema_id`: (Optional) A unique code represnting the Schema.
 		/// - `blob`: (Optional) Metadata or data associated with the registry.
 		///
@@ -540,27 +602,24 @@ pub mod pallet {
 		#[pallet::weight({0})]
 		pub fn create(
 			origin: OriginFor<T>,
-			_registry_id: RegistryIdOf,
 			digest: RegistryHashOf<T>,
+			namespace_authorization: NamespaceAuthorizationIdOf,
 			schema_id: Option<SchemaIdOf>,
 			_blob: Option<RegistryBlobOf<T>>,
 		) -> DispatchResult {
 			let creator = ensure_signed(origin)?;
 
-			// TODO: Create the identifier at SDK level & validate at chain level.
+			let namespace_id = pallet_namespace::Pallet::<T>::ensure_authorization_origin(
+				&namespace_authorization,
+				&creator,
+			)
+			.map_err(<pallet_namespace::Error<T>>::from)?;
+
 			// Id Digest = concat (H(<scale_encoded_registry_input_digest>,
 			// <scale_encoded_creator_identifier>))
 			let id_digest = <T as frame_system::Config>::Hashing::hash(
 				&[&digest.encode()[..], &creator.encode()[..]].concat()[..],
 			);
-
-			// /* Ensure that registry_id is of valid ss58 format,
-			//  * and also the type matches to be of `Registries`.
-			//  */
-			// ensure!(
-			// 	Self::is_valid_ss58_format(&registry_id),
-			// 	Error::<T>::InvalidRegistryIdentifier
-			// );
 
 			let identifier = Ss58Identifier::create_identifier(
 				&id_digest.encode()[..],
@@ -612,9 +671,17 @@ pub mod pallet {
 					revoked: false,
 					archived: false,
 					digest,
+					namespace_id: namespace_id.clone(),
 					schema_id,
 				},
 			);
+
+			// Update the namespace with the newly added registry.
+			pallet_namespace::Pallet::<T>::add_registry_id_to_namespace_details(
+				&namespace_id,
+				&identifier,
+			)
+			.map_err(<pallet_namespace::Error<T>>::from)?;
 
 			Self::update_activity(&identifier, IdentifierTypeOf::Registries, CallTypeOf::Genesis)
 				.map_err(Error::<T>::from)?;
@@ -639,8 +706,10 @@ pub mod pallet {
 		/// - `origin`: The origin of the transaction, which must be signed by the creator or an
 		///   admin with the appropriate authority.
 		/// - `registry_id`: The identifier of the registry to be revoked.
-		/// - `authorization`: An identifier for the authorization being used to validate the
-		///   revocation.
+		/// - `namespace_authorization`: The Namespace authorization ID used to validate the
+		///   caller's permission inside a namespace.
+		/// - `registry_authorization`: An identifier for the authorization being used to validate
+		///   the revocation.
 		///
 		/// # Returns
 		/// - `DispatchResult`: Returns `Ok(())` if the registry is successfully revoked, or an
@@ -663,12 +732,22 @@ pub mod pallet {
 		pub fn revoke(
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
-			authorization: AuthorizationIdOf,
+			namespace_authorization: NamespaceAuthorizationIdOf,
+			registry_authorization: RegistryAuthorizationIdOf,
 		) -> DispatchResult {
 			let creator = ensure_signed(origin)?;
 
+			// Verify Namespace Authorization
+			// TODO: Revist where admin permission of namespace is required.
+			// For now keeping everything under normal `ASSERT` permission.
+			let _namespace_id = pallet_namespace::Pallet::<T>::ensure_authorization_origin(
+				&namespace_authorization,
+				&creator,
+			)
+			.map_err(<pallet_namespace::Error<T>>::from)?;
+
 			let auth_registry_id =
-				Self::ensure_authorization_admin_origin(&authorization, &creator)?;
+				Self::ensure_authorization_admin_origin(&registry_authorization, &creator)?;
 
 			ensure!(auth_registry_id == registry_id, Error::<T>::UnauthorizedOperation);
 
@@ -701,8 +780,10 @@ pub mod pallet {
 		/// - `origin`: The origin of the transaction, which must be signed by the creator or an
 		///   admin with the appropriate authority.
 		/// - `registry_id`: The identifier of the registry to be reinstated.
-		/// - `authorization`: An identifier for the authorization being used to validate the
-		///   reinstatement.
+		/// - `namespace_authorization`: The Namespace authorization ID used to validate the
+		///   caller's permission inside a namespace.
+		/// - `registry_authorization`: An identifier for the authorization being used to validate
+		///   the reinstatement.
 		///
 		/// # Returns
 		/// - `DispatchResult`: Returns `Ok(())` if the registry is successfully reinstated, or an
@@ -725,12 +806,22 @@ pub mod pallet {
 		pub fn reinstate(
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
-			authorization: AuthorizationIdOf,
+			namespace_authorization: NamespaceAuthorizationIdOf,
+			registry_authorization: RegistryAuthorizationIdOf,
 		) -> DispatchResult {
 			let creator = ensure_signed(origin)?;
 
+			// Verify Namespace Authorization
+			// TODO: Revist where admin permission of namespace is required.
+			// For now keeping everything under normal `ASSERT` permission.
+			let _namespace_id = pallet_namespace::Pallet::<T>::ensure_authorization_origin(
+				&namespace_authorization,
+				&creator,
+			)
+			.map_err(<pallet_namespace::Error<T>>::from)?;
+
 			let auth_registry_id =
-				Self::ensure_authorization_reinstate_origin(&authorization, &creator)?;
+				Self::ensure_authorization_reinstate_origin(&registry_authorization, &creator)?;
 
 			ensure!(auth_registry_id == registry_id, Error::<T>::UnauthorizedOperation);
 
@@ -770,8 +861,10 @@ pub mod pallet {
 		/// - `digest`: The new digest (hash) to be assigned to the registry.
 		/// - `blob`: An optional new blob (data) to be assigned to the registry. If `None`, the
 		///   existing blob remains unchanged.
-		/// - `authorization`: An identifier for the authorization being used to validate the
-		///   update.
+		/// - `namespace_authorization`: The Namespace authorization ID used to validate the
+		///   caller's permission inside a namespace.
+		/// - `registry_authorization`: An identifier for the authorization being used to validate
+		///   the update.
 		///
 		/// # Returns
 		/// - `DispatchResult`: Returns `Ok(())` if the registry is successfully updated, or an
@@ -787,6 +880,8 @@ pub mod pallet {
 		/// # Events
 		/// - `Update`: Emitted when a registry is successfully updated. It includes the registry
 		///   ID, the updater, and the authorization used.
+		/// TODO:
+		/// Move optional parameter as last argument.
 		#[pallet::call_index(8)]
 		#[pallet::weight({0})]
 		pub fn update(
@@ -794,15 +889,25 @@ pub mod pallet {
 			registry_id: RegistryIdOf,
 			digest: RegistryHashOf<T>,
 			_blob: Option<RegistryBlobOf<T>>,
-			authorization: AuthorizationIdOf,
+			namespace_authorization: NamespaceAuthorizationIdOf,
+			registry_authorization: RegistryAuthorizationIdOf,
 		) -> DispatchResult {
 			let creator = ensure_signed(origin)?;
+
+			// Verify Namespace Authorization
+			// TODO: Revist where admin permission of namespace is required.
+			// For now keeping everything under normal `ASSERT` permission.
+			let _namespace_id = pallet_namespace::Pallet::<T>::ensure_authorization_origin(
+				&namespace_authorization,
+				&creator,
+			)
+			.map_err(<pallet_namespace::Error<T>>::from)?;
 
 			let mut registry =
 				RegistryInfo::<T>::get(&registry_id).ok_or(Error::<T>::RegistryNotFound)?;
 
 			let auth_registry_id =
-				Self::ensure_authorization_admin_origin(&authorization, &creator)?;
+				Self::ensure_authorization_admin_origin(&registry_authorization, &creator)?;
 			ensure!(auth_registry_id == registry_id, Error::<T>::UnauthorizedOperation);
 
 			registry.digest = digest;
@@ -815,7 +920,7 @@ pub mod pallet {
 			Self::deposit_event(Event::Update {
 				registry_id: registry_id.clone(),
 				updater: creator,
-				authorization,
+				authorization: registry_authorization,
 			});
 
 			Ok(())
@@ -832,8 +937,10 @@ pub mod pallet {
 		/// - `origin`: The origin of the transaction, which must be signed by the creator or an
 		///   admin with the appropriate authority.
 		/// - `registry_id`: The identifier of the registry to be archived.
-		/// - `authorization`: An identifier for the authorization being used to validate the
-		///   archival.
+		/// - `namespace_authorization`: The Namespace authorization ID used to validate the
+		///   caller's permission inside a namespace.
+		/// - `registry_authorization`: An identifier for the authorization being used to validate
+		///   the archival.
 		///
 		/// # Returns
 		/// - `DispatchResult`: Returns `Ok(())` if the registry is successfully archived, or an
@@ -856,12 +963,22 @@ pub mod pallet {
 		pub fn archive(
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
-			authorization: AuthorizationIdOf,
+			namespace_authorization: NamespaceAuthorizationIdOf,
+			registry_authorization: RegistryAuthorizationIdOf,
 		) -> DispatchResult {
 			let creator = ensure_signed(origin)?;
 
+			// Verify Namespace Authorization
+			// TODO: Revist where admin permission of namespace is required.
+			// For now keeping everything under normal `ASSERT` permission.
+			let _namespace_id = pallet_namespace::Pallet::<T>::ensure_authorization_origin(
+				&namespace_authorization,
+				&creator,
+			)
+			.map_err(<pallet_namespace::Error<T>>::from)?;
+
 			let auth_registry_id =
-				Self::ensure_authorization_admin_origin(&authorization, &creator)?;
+				Self::ensure_authorization_admin_origin(&registry_authorization, &creator)?;
 
 			ensure!(auth_registry_id == registry_id, Error::<T>::UnauthorizedOperation);
 
@@ -894,8 +1011,10 @@ pub mod pallet {
 		/// - `origin`: The origin of the transaction, which must be signed by the creator or an
 		///   admin with the appropriate authority.
 		/// - `registry_id`: The identifier of the registry to be restored.
-		/// - `authorization`: An identifier for the authorization being used to validate the
-		///   restoration.
+		/// - `namespace_authorization`: The Namespace authorization ID used to validate the
+		///   caller's permission inside a namespace.
+		/// - `registry_authorization`: An identifier for the authorization being used to validate
+		///   the restoration.
 		///
 		/// # Returns
 		/// - `DispatchResult`: Returns `Ok(())` if the registry is successfully restored, or an
@@ -918,12 +1037,22 @@ pub mod pallet {
 		pub fn restore(
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
-			authorization: AuthorizationIdOf,
+			namespace_authorization: NamespaceAuthorizationIdOf,
+			registry_authorization: RegistryAuthorizationIdOf,
 		) -> DispatchResult {
 			let creator = ensure_signed(origin)?;
 
+			// Verify Namespace Authorization
+			// TODO: Revist where admin permission of namespace is required.
+			// For now keeping everything under normal `ASSERT` permission.
+			let _namespace_id = pallet_namespace::Pallet::<T>::ensure_authorization_origin(
+				&namespace_authorization,
+				&creator,
+			)
+			.map_err(<pallet_namespace::Error<T>>::from)?;
+
 			let auth_registry_id =
-				Self::ensure_authorization_restore_origin(&authorization, &creator)?;
+				Self::ensure_authorization_restore_origin(&registry_authorization, &creator)?;
 
 			ensure!(auth_registry_id == registry_id, Error::<T>::UnauthorizedOperation);
 
@@ -1024,7 +1153,7 @@ impl<T: Config> Pallet<T> {
 	/// This function checks if the provided delegate is associated with the
 	/// given authorization ID and has the 'ASSERT' permission.
 	pub fn ensure_authorization_origin(
-		authorization_id: &AuthorizationIdOf,
+		authorization_id: &RegistryAuthorizationIdOf,
 		delegate: &RegistryCreatorOf<T>,
 	) -> Result<RegistryIdOf, Error<T>> {
 		let d =
@@ -1045,7 +1174,7 @@ impl<T: Config> Pallet<T> {
 	/// given authorization ID and has the 'ADMIN' permission.
 	/// This asserts for delegates authorization has the permission to reinstate.
 	pub fn ensure_authorization_reinstate_origin(
-		authorization_id: &AuthorizationIdOf,
+		authorization_id: &RegistryAuthorizationIdOf,
 		delegate: &RegistryCreatorOf<T>,
 	) -> Result<RegistryIdOf, Error<T>> {
 		let d =
@@ -1067,7 +1196,7 @@ impl<T: Config> Pallet<T> {
 	/// given authorization ID and has the 'ADMIN' permission.
 	/// This asserts for delegates authorization has the permission to restore.
 	pub fn ensure_authorization_restore_origin(
-		authorization_id: &AuthorizationIdOf,
+		authorization_id: &RegistryAuthorizationIdOf,
 		delegate: &RegistryCreatorOf<T>,
 	) -> Result<RegistryIdOf, Error<T>> {
 		let d =
@@ -1089,7 +1218,7 @@ impl<T: Config> Pallet<T> {
 	/// the registry by checking the 'ADMIN' permission within the authorization
 	/// tied to the provided authorization ID.
 	pub fn ensure_authorization_admin_origin(
-		authorization_id: &AuthorizationIdOf,
+		authorization_id: &RegistryAuthorizationIdOf,
 		delegate: &RegistryCreatorOf<T>,
 	) -> Result<RegistryIdOf, Error<T>> {
 		let d =
@@ -1112,7 +1241,7 @@ impl<T: Config> Pallet<T> {
 	/// that authorization is allowed to perform audit operations. It also
 	/// increments usage and validates the registry for transactions.
 	pub fn ensure_authorization_delegator_origin(
-		authorization_id: &AuthorizationIdOf,
+		authorization_id: &RegistryAuthorizationIdOf,
 		delegate: &RegistryCreatorOf<T>,
 	) -> Result<RegistryIdOf, Error<T>> {
 		let d =
@@ -1137,7 +1266,7 @@ impl<T: Config> Pallet<T> {
 	/// the registry by checking the 'ADMIN' permission within the authorization
 	/// tied to the provided authorization ID.
 	pub fn ensure_authorization_admin_remove_origin(
-		authorization_id: &AuthorizationIdOf,
+		authorization_id: &RegistryAuthorizationIdOf,
 		delegate: &RegistryCreatorOf<T>,
 	) -> Result<RegistryIdOf, Error<T>> {
 		let d =
@@ -1242,7 +1371,7 @@ impl<T: Config> Pallet<T> {
 	/// }
 	/// ```
 	pub fn is_admin_authorization(
-		authorization_id: &AuthorizationIdOf,
+		authorization_id: &RegistryAuthorizationIdOf,
 		delegate: &RegistryCreatorOf<T>,
 	) -> bool {
 		if let Some(auth) = <Authorizations<T>>::get(authorization_id) {
@@ -1282,25 +1411,6 @@ impl<T: Config> Pallet<T> {
 		Timepoint {
 			height: frame_system::Pallet::<T>::block_number().unique_saturated_into(),
 			index: frame_system::Pallet::<T>::extrinsic_index().unwrap_or_default(),
-		}
-	}
-
-	/// Method to check if the input identifier calculated from sdk
-	/// is actually a valid SS58 Identifier Format and of valid type `Registries`.
-	pub fn is_valid_ss58_format(identifier: &Ss58Identifier) -> bool {
-		match identifier.get_type() {
-			Ok(id_type) =>
-				if id_type == IdentifierType::Registries {
-					log::debug!("The SS58 identifier is of type Registries.");
-					true
-				} else {
-					log::debug!("The SS58 identifier is not of type Registries.");
-					false
-				},
-			Err(e) => {
-				log::debug!("Invalid SS58 identifier. Error: {:?}", e);
-				false
-			},
 		}
 	}
 }

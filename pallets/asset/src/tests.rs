@@ -1,5 +1,5 @@
 use super::*;
-use crate::mock::*;
+use crate::{mock::*, types::AssetIssuanceEntry, Error};
 use codec::Encode;
 use cord_utilities::mock::{mock_origin::DoubleOrigin, SubjectId};
 use frame_support::{assert_err, assert_ok, BoundedVec};
@@ -278,12 +278,15 @@ fn asset_unauthorized_operation_should_fail() {
 			authorization_id.clone()
 		));
 
-		assert_err!(Asset::issue(
-			DoubleOrigin(unauthorized_author.clone(), unauthorized_creator.clone()).into(), // Unauthorized author attempting the action
-			issue_entry.clone(),
-			issue_entry_digest,
-			unauthorized_authorization_id.clone()
-		), Error::<Test>::UnauthorizedOperation);
+		assert_err!(
+			Asset::issue(
+				DoubleOrigin(unauthorized_author.clone(), unauthorized_creator.clone()).into(), // Unauthorized author attempting the action
+				issue_entry.clone(),
+				issue_entry_digest,
+				unauthorized_authorization_id.clone()
+			),
+			Error::<Test>::UnauthorizedOperation
+		);
 
 		assert_ok!(Asset::issue(
 			DoubleOrigin(author.clone(), creator.clone()).into(),
@@ -292,29 +295,32 @@ fn asset_unauthorized_operation_should_fail() {
 			authorization_id.clone()
 		));
 
-		assert_err!(Asset::transfer(
-			DoubleOrigin(unauthorized_author.clone(), unauthorized_creator.clone()).into(),
-			transfer_entry.clone(),
-			transfer_entry_digest,
-		),
-		Error::<Test>::UnauthorizedOperation
+		assert_err!(
+			Asset::transfer(
+				DoubleOrigin(unauthorized_author.clone(), unauthorized_creator.clone()).into(),
+				transfer_entry.clone(),
+				transfer_entry_digest,
+			),
+			Error::<Test>::UnauthorizedOperation
 		);
 
-		assert_err!(Asset::transfer(
-			DoubleOrigin(author.clone(), creator.clone()).into(),
-			unauthorized_transfer_entry.clone(),
-			unauthorized_entry_digest,
-		),
-		Error::<Test>::UnauthorizedOperation
+		assert_err!(
+			Asset::transfer(
+				DoubleOrigin(author.clone(), creator.clone()).into(),
+				unauthorized_transfer_entry.clone(),
+				unauthorized_entry_digest,
+			),
+			Error::<Test>::UnauthorizedOperation
 		);
 
-		assert_err!(Asset::status_change(
-			DoubleOrigin(unauthorized_author.clone(), unauthorized_creator.clone()).into(),
-			asset_id.clone(),
-			Some(instance_id.clone()),
-			AssetStatusOf::INACTIVE
-		),
-		Error::<Test>::UnauthorizedOperation
+		assert_err!(
+			Asset::status_change(
+				DoubleOrigin(unauthorized_author.clone(), unauthorized_creator.clone()).into(),
+				asset_id.clone(),
+				Some(instance_id.clone()),
+				AssetStatusOf::INACTIVE
+			),
+			Error::<Test>::UnauthorizedOperation
 		);
 
 		assert_ok!(Asset::vc_create(
@@ -324,13 +330,14 @@ fn asset_unauthorized_operation_should_fail() {
 			authorization_id.clone()
 		));
 
-		assert_err!(Asset::vc_issue(
-			DoubleOrigin(unauthorized_author.clone(), unauthorized_creator.clone()).into(),
-			issue_entry.clone(),
-			issue_entry_digest,
-			unauthorized_authorization_id
-		),
-		Error::<Test>::UnauthorizedOperation
+		assert_err!(
+			Asset::vc_issue(
+				DoubleOrigin(unauthorized_author.clone(), unauthorized_creator.clone()).into(),
+				issue_entry.clone(),
+				issue_entry_digest,
+				unauthorized_authorization_id
+			),
+			Error::<Test>::UnauthorizedOperation
 		);
 
 		assert_ok!(Asset::vc_issue(
@@ -340,31 +347,33 @@ fn asset_unauthorized_operation_should_fail() {
 			authorization_id
 		));
 
-		assert_err!(Asset::vc_transfer(
-			DoubleOrigin(unauthorized_author.clone(), unauthorized_creator.clone()).into(),
-			transfer_entry.clone(),
-			transfer_entry_digest,
-		),
-		Error::<Test>::UnauthorizedOperation
+		assert_err!(
+			Asset::vc_transfer(
+				DoubleOrigin(unauthorized_author.clone(), unauthorized_creator.clone()).into(),
+				transfer_entry.clone(),
+				transfer_entry_digest,
+			),
+			Error::<Test>::UnauthorizedOperation
 		);
 
-		assert_err!(Asset::vc_transfer(
-			DoubleOrigin(author.clone(), creator.clone()).into(),
-			unauthorized_transfer_entry.clone(),
-			unauthorized_entry_digest,
-		),
-		Error::<Test>::UnauthorizedOperation
+		assert_err!(
+			Asset::vc_transfer(
+				DoubleOrigin(author.clone(), creator.clone()).into(),
+				unauthorized_transfer_entry.clone(),
+				unauthorized_entry_digest,
+			),
+			Error::<Test>::UnauthorizedOperation
 		);
 
-		assert_err!(Asset::vc_status_change(
-			DoubleOrigin(unauthorized_author.clone(), unauthorized_creator.clone()).into(),
-			asset_id.clone(),
-			Some(instance_id.clone()),
-			AssetStatusOf::INACTIVE
-		),
-		Error::<Test>::UnauthorizedOperation
+		assert_err!(
+			Asset::vc_status_change(
+				DoubleOrigin(unauthorized_author.clone(), unauthorized_creator.clone()).into(),
+				asset_id.clone(),
+				Some(instance_id.clone()),
+				AssetStatusOf::INACTIVE
+			),
+			Error::<Test>::UnauthorizedOperation
 		);
-
 	});
 }
 
@@ -3054,6 +3063,101 @@ fn asset_vc_status_change_with_wrong_asset_id_should_fail() {
 				AssetStatusOf::INACTIVE
 			),
 			Error::<Test>::AssetIdNotFound
+		);
+	});
+}
+
+#[test]
+fn asset_issue_should_fail_when_distribution_limit_exceeds() {
+	let creator = DID_00;
+	let author = ACCOUNT_00;
+	let capacity = 200u64;
+
+	let raw_space = [2u8; 256].to_vec();
+	let space_digest = <Test as frame_system::Config>::Hashing::hash(&raw_space.encode()[..]);
+	let space_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&space_digest.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let space_id: SpaceIdOf = generate_space_id::<Test>(&space_id_digest);
+
+	let auth_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&space_id.encode()[..], &creator.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let authorization_id: Ss58Identifier = generate_authorization_id::<Test>(&auth_digest);
+	let asset_desc = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
+	let asset_tag = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
+	let asset_meta = BoundedVec::try_from([72u8; 10].to_vec()).unwrap();
+	let asset_qty = 1000;
+	let asset_value = 10;
+	let asset_type = AssetTypeOf::MF;
+
+	let entry = AssetInputEntryOf::<Test> {
+		asset_desc,
+		asset_qty,
+		asset_type,
+		asset_value,
+		asset_tag,
+		asset_meta,
+	};
+
+	let digest = <Test as frame_system::Config>::Hashing::hash(&[&entry.encode()[..]].concat()[..]);
+
+	let issue_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&digest.encode()[..], &space_id.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+
+	let asset_id: Ss58Identifier = generate_asset_id::<Test>(&issue_id_digest);
+
+	new_test_ext().execute_with(|| {
+		// Create and approve space
+		assert_ok!(Space::create(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			space_digest,
+		));
+		assert_ok!(Space::approve(RawOrigin::Root.into(), space_id.clone(), capacity));
+		assert_ok!(Asset::create(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			entry.clone(),
+			digest,
+			authorization_id.clone()
+		));
+
+		let max_distribution = <Test as Config>::MaxAssetDistribution::get();
+
+		for _ in 0..max_distribution {
+			let issuance_entry = AssetIssuanceEntry {
+				asset_id: asset_id.clone(),
+				asset_owner: creator.clone(),
+				asset_issuance_qty: Some(1),
+			};
+
+			let issuance_digest =
+				<Test as frame_system::Config>::Hashing::hash(&issuance_entry.encode()[..]);
+
+			assert_ok!(Asset::issue(
+				DoubleOrigin(author.clone(), creator.clone()).into(),
+				issuance_entry,
+				issuance_digest,
+				authorization_id.clone()
+			));
+		}
+		let exceeding_entry = AssetIssuanceEntry {
+			asset_id: asset_id.clone(),
+			asset_owner: creator.clone(),
+			asset_issuance_qty: Some(1),
+		};
+
+		let exceeding_digest =
+			<Test as frame_system::Config>::Hashing::hash(&exceeding_entry.encode()[..]);
+
+		assert_err!(
+			Asset::issue(
+				DoubleOrigin(author.clone(), creator.clone()).into(),
+				exceeding_entry,
+				exceeding_digest,
+				authorization_id.clone()
+			),
+			Error::<Test>::DistributionLimitExceeded
 		);
 	});
 }

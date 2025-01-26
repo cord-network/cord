@@ -20,8 +20,9 @@ use super::*;
 use crate as pallet_entries;
 use cord_utilities::mock::{mock_origin, SubjectId};
 use frame_support::{derive_impl, parameter_types};
+use pallet_namespace::IsPermissioned;
 
-//use frame_system::EnsureRoot;
+use frame_system::EnsureRoot;
 use sp_runtime::{
 	traits::{IdentifyAccount, IdentityLookup, Verify},
 	BuildStorage, MultiSignature,
@@ -37,6 +38,7 @@ frame_support::construct_runtime!(
 		System: frame_system,
 		Identifier: identifier,
 		MockOrigin: mock_origin,
+		NameSpace: pallet_namespace,
 		SchemaAccounts: pallet_schema_accounts,
 		Registries: pallet_registries,
 		Entries: pallet_entries,
@@ -61,6 +63,28 @@ impl mock_origin::Config for Test {
 	type RuntimeOrigin = RuntimeOrigin;
 	type AccountId = AccountId;
 	type SubjectId = SubjectId;
+}
+
+pub struct NetworkPermission;
+impl IsPermissioned for NetworkPermission {
+	fn is_permissioned() -> bool {
+		true
+	}
+}
+
+parameter_types! {
+	#[derive(Debug, Clone)]
+	pub const MaxNameSpaceDelegates: u32 = 5u32;
+	pub const MaxNameSpaceBlobSize: u32 = 4u32 * 1024;
+}
+
+impl pallet_namespace::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type ChainSpaceOrigin = EnsureRoot<AccountId>;
+	type NetworkPermission = NetworkPermission;
+	type MaxNameSpaceDelegates = MaxNameSpaceDelegates;
+	type MaxNameSpaceBlobSize = MaxNameSpaceBlobSize;
+	type WeightInfo = ();
 }
 
 parameter_types! {

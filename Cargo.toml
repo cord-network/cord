@@ -17,6 +17,7 @@ members = [
 	"node/testing",
 	"pallets/asset",
 	"pallets/chain-space",
+	"pallets/namespace",
 	"pallets/did",
 	"pallets/did-name",
 	"pallets/identity",
@@ -898,6 +899,7 @@ pallet-registries = { path = "pallets/registries", default-features = false }
 pallet-entries = { path = "pallets/entries", default-features = false }
 pallet-schema-accounts = { path = "pallets/schema-accounts", default-features = false }
 pallet-meta-tx = { path = "pallets/meta-tx", default-features = false }
+pallet-namespace = { path = 'pallets/namespace', default-features = false }
 
 
 [profile.release]

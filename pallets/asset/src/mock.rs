@@ -65,7 +65,7 @@ impl mock_origin::Config for Test {
 
 parameter_types! {
 	pub const MaxEncodedValueLength: u32 = 1_024;
-	pub const MaxAssetDistribution: u32 = u32::MAX;
+	pub const MaxAssetDistribution: u32 = 25;
 }
 
 impl Config for Test {

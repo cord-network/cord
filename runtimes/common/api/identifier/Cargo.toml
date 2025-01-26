@@ -15,10 +15,7 @@ workspace = true
 # External dependencies
 codec = { features = ["derive"], workspace = true }
 scale-info = { features = ["derive"], workspace = true }
-# serde = { optional = true, features = ["alloc", "derive"], workspace = true }
 
-# Internal dependencies
-# cord-uri = { workspace = true, default-features = true }
 
 # Substrate
 sp-api = { workspace = true }
@@ -33,8 +30,5 @@ std = [
 	"frame-system/std",
 	"codec/std",
 	"sp-api/std",
-	# "sp-std/std",
-	# "serde/std",
 	"scale-info/std",
-	# "cord-uri/std",
 ]

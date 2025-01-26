@@ -20,7 +20,7 @@ use super::*;
 use crate::mock::*;
 use codec::Encode;
 use cord_utilities::mock::{mock_origin::DoubleOrigin, SubjectId};
-use frame_support::{assert_noop, assert_ok, BoundedVec};
+use frame_support::{assert_err, assert_noop, assert_ok, BoundedVec};
 use frame_system::RawOrigin;
 use sp_core::H256;
 use sp_runtime::{traits::Hash, AccountId32};
@@ -312,5 +312,37 @@ fn test_schema_lookup() {
 			assert_eq!(stored_schema.digest, digest);
 			assert_eq!(stored_schema.creator, creator);
 		}
+	});
+}
+#[test]
+fn check_schema_not_found() {
+	let creator = DID_00;
+	let author = ACCOUNT_00;
+	let capacity = 3u64;
+
+	let raw_space = [2u8; 256].to_vec();
+	let space_digest = <Test as frame_system::Config>::Hashing::hash(&raw_space.encode()[..]);
+	let space_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&space_digest.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let space_id: SpaceIdOf = generate_space_id::<Test>(&space_id_digest);
+
+	let raw_schema = [3u8; 256].to_vec();
+	let schema: InputSchemaOf<Test> = BoundedVec::try_from(raw_schema)
+		.expect("Test Schema should fit into the expected input length of for the test runtime.");
+	let schema_id_digest = <Test as frame_system::Config>::Hashing::hash(
+		&[&schema.encode()[..], &space_id.encode()[..], &creator.encode()[..]].concat()[..],
+	);
+	let schema_id: SchemaIdOf = generate_schema_id::<Test>(&schema_id_digest);
+
+	new_test_ext().execute_with(|| {
+		assert_ok!(Space::create(
+			DoubleOrigin(author.clone(), creator.clone()).into(),
+			space_digest,
+		));
+
+		assert_ok!(Space::approve(RawOrigin::Root.into(), space_id, capacity));
+
+		assert_err!(Schema::is_valid(&schema_id), Error::<Test>::SchemaNotFound);
 	});
 }

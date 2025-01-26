@@ -85,4 +85,6 @@ pub enum IdentifierTypeOf {
 	Entries,
 	RegistryAuthorization,
 	SchemaAccounts,
+	NameSpace,
+	NameSpaceAuthorization,
 }

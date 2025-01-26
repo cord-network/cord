@@ -131,6 +131,7 @@ pub mod pallet {
 	}
 
 	#[pallet::error]
+	#[derive(PartialEq)]
 	pub enum Error<T> {
 		/// Schema identifier is not unique.
 		SchemaAlreadyAnchored,

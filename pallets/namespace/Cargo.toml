@@ -1,6 +1,6 @@
 [package]
-name = 'pallet-registries'
-description = 'Manage Registries.'
+name = 'pallet-namespace'
+description = 'Manage Name-Spaces.'
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -23,9 +23,6 @@ cord-utilities = { features = ["mock"], workspace = true }
 codec = { features = ["derive"], workspace = true }
 scale-info = { features = ["derive"], workspace = true }
 bitflags = { workspace = true }
-log = { workspace = true }
-pallet-namespace = { workspace = true }
-pallet-schema-accounts = { workspace = true }
 
 # Internal dependencies
 cord-primitives = { workspace = true }
@@ -42,6 +39,7 @@ sp-keystore = { optional = true, workspace = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
 
+
 [features]
 default = ['std']
 runtime-benchmarks = [
@@ -50,7 +48,6 @@ runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"cord-utilities/runtime-benchmarks",
-	"pallet-namespace/runtime-benchmarks",
 ]
 std = [
 	"codec/std",
@@ -66,19 +63,11 @@ std = [
 	"sp-keystore/std",
 	"sp-runtime/std",
 	"sp-std/std",
-	"pallet-namespace/std",
-	"pallet-schema-accounts/std",
 ]
 try-runtime = [
 	"frame-support/try-runtime",
 	"frame-system/try-runtime",
 	"identifier/try-runtime",
 	"cord-utilities/try-runtime",
-	"sp-runtime/try-runtime",
-	"pallet-namespace/std",
-	"pallet-schema-accounts/std",
+	"sp-runtime/try-runtime"
 ]
-
-# Disable doctest when running `cargo test` 
-[lib]
-doctest = false
