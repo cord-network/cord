@@ -828,7 +828,7 @@ parameter_types! {
 impl pallet_namespace::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type ChainSpaceOrigin = EnsureRoot<AccountId>;
-	type NetworkPermission = NetworkParameters;
+	type NetworkPermission = NetworkInfo;
 	type MaxNameSpaceDelegates = MaxNameSpaceDelegates;
 	type MaxNameSpaceBlobSize = MaxNameSpaceBlobSize;
 	type WeightInfo = ();
@@ -1095,6 +1095,9 @@ mod runtime {
 	#[runtime::pallet_index(77)]
 	pub type NetworkScore = pallet_network_score::Pallet<Runtime>;
 
+	#[runtime::pallet_index(78)]
+	pub type NameSpace = pallet_namespace::Pallet<Runtime>;
+
 	#[runtime::pallet_index(80)]
 	pub type NetworkInfo = pallet_config::Pallet<Runtime>;
 
@@ -1121,9 +1124,6 @@ mod runtime {
 
 	#[runtime::pallet_index(104)]
 	pub type RootTesting = pallet_root_testing::Pallet<Runtime>;
-
-	#[runtime::pallet_index(64)]
-	pub type NameSpace = pallet_namespace;
 
 	#[runtime::pallet_index(255)]
 	pub type Sudo = pallet_sudo::Pallet<Runtime>;
