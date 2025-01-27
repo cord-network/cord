@@ -234,6 +234,7 @@ runtime-benchmarks = [
 	"pallet-asset-conversion/runtime-benchmarks",
 	"pallet-assets/runtime-benchmarks",
 	"pallet-config/runtime-benchmarks",
+	"pallet-entries/runtime-benchmarks",
 	"pallet-registries/runtime-benchmarks",
 ]
 

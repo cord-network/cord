@@ -247,6 +247,7 @@ runtime-benchmarks = [
 	"pallet-assets/runtime-benchmarks",
 	"pallet-config/runtime-benchmarks",
 	"pallet-treasury/runtime-benchmarks",
+	"pallet-entries/runtime-benchmarks",
 	"pallet-registries/runtime-benchmarks",
 ]
 

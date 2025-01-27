@@ -1348,6 +1348,8 @@ mod benches {
 		[pallet_network_membership, NetworkMembership]
 		[pallet_network_score, NetworkScore]
 		[pallet_sudo, Sudo]
+		[pallet_registries, Registries]
+		[pallet_entries, Entries]
 	);
 }
 

@@ -50,6 +50,7 @@ members = [
 	"test-utils/runtime/client",
 	"test-utils/runtime/transaction-pool",
 	"test-utils/service",
+	"pallets/entries",
 
 ]
 default-members = ["node/cli"]
