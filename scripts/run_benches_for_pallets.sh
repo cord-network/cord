@@ -51,14 +51,17 @@ done
 
 if [ "$skip_build" != true ]; then
   echo "[+] Compiling CORD benchmarks..."
-  cargo build --profile=production --locked --features=runtime-benchmarks --bin cord
+  cargo build --profile=release --locked --features=runtime-benchmarks --bin cord
 fi
 
 # The executable to use.
-CORD=./target/production/cord
+CORD=./target/release/cord
 
 # Manually exclude some pallets.
+# TODO: Add namespace after its benchmarking.rs file is ready
 PALLETS=(
+  "pallet_registries"
+  "pallet_entries"
   "pallet_chain_space"
   "pallet_collective"
   "pallet_did"
@@ -90,6 +93,12 @@ for PALLET in "${PALLETS[@]}"; do
   fi
 
   case $PALLET in
+  pallet_registries)
+    FOLDER="registries"
+    ;;
+  pallet_entries)
+    FOLDER="entries"
+    ;;
   pallet_chain_space)
     FOLDER="chain-space"
     ;;
