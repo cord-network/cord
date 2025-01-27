@@ -51,11 +51,11 @@ done
 
 if [ "$skip_build" != true ]; then
   echo "[+] Compiling CORD benchmarks..."
-  cargo build --profile=release --locked --features=runtime-benchmarks --bin cord
+  cargo build --profile=production --locked --features=runtime-benchmarks --bin cord
 fi
 
 # The executable to use.
-CORD=./target/release/cord
+CORD=./target/production/cord
 
 # Manually exclude some pallets.
 # TODO: Add namespace after its benchmarking.rs file is ready

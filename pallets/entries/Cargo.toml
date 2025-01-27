@@ -33,6 +33,7 @@ log = { workspace = true }
 serde_json = { workspace = true }
 
 frame-benchmarking = { optional = true, workspace = true }
+pallet-namespace = { workspace = true }
 pallet-registries = { workspace = true }
 pallet-schema-accounts = { workspace = true }
 
@@ -56,7 +57,7 @@ std = [
 	"identifier/std",
 	"cord-primitives/std",
 	"enumflags2/std",
-	"frame-benchmarking?/std",
+	"frame-benchmarking/std",
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
