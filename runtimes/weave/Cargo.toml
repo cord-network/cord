@@ -118,6 +118,7 @@ pallet-offences-benchmarking = { workspace = true, optional = true }
 pallet-paged-list = { workspace = true }
 pallet-preimage = { workspace = true }
 pallet-remark = { workspace = true }
+pallet-revive = { workspace = true }
 pallet-root-offences = { workspace = true }
 pallet-root-testing = { workspace = true }
 pallet-sudo = { workspace = true }
@@ -229,6 +230,7 @@ std = [
 	"pallet-paged-list/std",
 	"pallet-preimage/std",
 	"pallet-remark/std",
+	"pallet-revive/std",
 	"pallet-root-offences/std",
 	"pallet-root-testing/std",
 	"pallet-sudo/std",
@@ -319,6 +321,7 @@ runtime-benchmarks = [
 	"pallet-offences/runtime-benchmarks",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-remark/runtime-benchmarks",
+	"pallet-revive/runtime-benchmarks",
 	"pallet-safe-mode/runtime-benchmarks",
 	"pallet-scheduler/runtime-benchmarks",
 	"pallet-session-benchmarking/runtime-benchmarks",
@@ -374,6 +377,7 @@ try-runtime = [
 	"pallet-offences/try-runtime",
 	"pallet-preimage/try-runtime",
 	"pallet-remark/try-runtime",
+	"pallet-revive/try-runtime",
 	"pallet-root-testing/try-runtime",
 	"pallet-safe-mode/try-runtime",
 	"pallet-scheduler/try-runtime",

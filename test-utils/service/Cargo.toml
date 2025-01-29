@@ -31,7 +31,7 @@ sc-consensus = { workspace = true }
 sc-executor = { workspace = true }
 sc-network = { workspace = true }
 sc-network-sync = { workspace = true }
-sc-service = { features = ["test-helpers"], workspace = true }
+sc-service = { workspace = true }
 sc-transaction-pool-api = { workspace = true }
 sp-api = { workspace = true }
 sp-blockchain = { workspace = true }

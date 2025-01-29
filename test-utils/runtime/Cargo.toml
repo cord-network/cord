@@ -44,7 +44,7 @@ sp-consensus-grandpa = { features = ["serde"], workspace = true }
 sp-trie = { workspace = true }
 sp-transaction-pool = { workspace = true }
 trie-db = { workspace = true }
-sc-service = { features = ["test-helpers"], workspace = true, optional = true }
+sc-service = { workspace = true, optional = true }
 sp-state-machine = { workspace = true }
 sp-externalities = { workspace = true }
 sp-crypto-hashing = { workspace = true }

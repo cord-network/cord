@@ -31,7 +31,7 @@ sc-client-api = { workspace = true }
 sc-client-db = { features = ["rocksdb"], workspace = true }
 sc-consensus = { workspace = true }
 sc-executor = { workspace = true }
-sc-service = { features = ["rocksdb", "test-helpers"], workspace = true }
+sc-service = { features = ["rocksdb"], workspace = true }
 sp-api = { workspace = true }
 sp-block-builder = { workspace = true }
 sp-blockchain = { workspace = true }

@@ -24,7 +24,7 @@ use sc_cli::Result;
 use sc_client_api::UsageProvider;
 use sp_inherents::{InherentData, InherentDataProvider};
 use sp_keyring::Sr25519Keyring;
-use sp_runtime::OpaqueExtrinsic;
+use sp_runtime::{generic, OpaqueExtrinsic};
 
 use std::{sync::Arc, time::Duration};
 
@@ -221,6 +221,7 @@ fn braid_sign_call(
 		frame_system::CheckWeight::<runtime::Runtime>::new(),
 		pallet_transaction_payment::ChargeTransactionPayment::<runtime::Runtime>::from(0),
 		frame_metadata_hash_extension::CheckMetadataHash::new(false),
+		frame_system::WeightReclaim::<runtime::Runtime>::new(),
 	);
 
 	let payload = runtime::SignedPayload::from_raw(
@@ -237,6 +238,7 @@ fn braid_sign_call(
 			(),
 			(),
 			None,
+			(),
 		),
 	);
 
@@ -277,6 +279,7 @@ fn loom_sign_call(
 		frame_system::CheckWeight::<runtime::Runtime>::new(),
 		pallet_transaction_payment::ChargeTransactionPayment::<runtime::Runtime>::from(0),
 		frame_metadata_hash_extension::CheckMetadataHash::new(false),
+		frame_system::WeightReclaim::<runtime::Runtime>::new(),
 	);
 
 	let payload = runtime::SignedPayload::from_raw(
@@ -293,6 +296,7 @@ fn loom_sign_call(
 			(),
 			(),
 			None,
+			(),
 		),
 	);
 
@@ -333,6 +337,7 @@ fn weave_sign_call(
 		frame_system::CheckWeight::<runtime::Runtime>::new(),
 		pallet_asset_conversion_tx_payment::ChargeAssetTxPayment::<runtime::Runtime>::from(0, None),
 		frame_metadata_hash_extension::CheckMetadataHash::new(false),
+		frame_system::WeightReclaim::<runtime::Runtime>::new(),
 	);
 
 	let payload = runtime::SignedPayload::from_raw(
@@ -348,13 +353,14 @@ fn weave_sign_call(
 			(),
 			(),
 			None,
+			(),
 		),
 	);
 
 	let signature = payload.using_encoded(|p| acc.sign(p));
-	runtime::UncheckedExtrinsic::new_signed(
+	generic::UncheckedExtrinsic::new_signed(
 		call,
-		sp_runtime::AccountId32::from(acc.public()).into(),
+		<AccountId>::from(sp_runtime::AccountId32::from(acc.public())),
 		cord_primitives::Signature::Sr25519(signature),
 		extra,
 	)
