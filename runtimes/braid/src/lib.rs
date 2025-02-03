@@ -885,7 +885,9 @@ impl pallet_config::Config for Runtime {
 	type DefaultNetworkId = ConstU32<1000>;
 }
 
-impl cord_uri::Config for Runtime {}
+impl cord_uri::Config for Runtime {
+	type BlockNumberProvider = System;
+}
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
 impl pallet_root_testing::Config for Runtime {

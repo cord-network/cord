@@ -27,11 +27,29 @@ use cord_primitives::Id as NetworkId;
 use frame_support::{ensure, pallet_prelude::*, traits::ConstU32, BoundedVec};
 use scale_info::TypeInfo;
 use sp_core::hexdisplay::HexDisplay;
+use sp_runtime::traits::{BlockNumberProvider, UniqueSaturatedInto};
 
 const PREFIX: &[u8] = b"CURIV02";
 const INDEX: u16 = 64;
 
 pub use crate::pallet::*;
+
+/// EventStamp marks the block and extrinsic where an event occurred.
+#[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
+pub struct EventStamp {
+	pub height: u32,
+	pub index: u32,
+}
+
+/// EntryTypeOf is a bounded vector (max 64 bytes) that holds part of an event message,
+pub type EntryTypeOf = BoundedVec<u8, ConstU32<64>>;
+
+/// ActivityRecord stores an update entry and the corresponding event stamp.
+#[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
+pub struct ActivityRecord {
+	pub entry: EntryTypeOf,
+	pub event_stamp: EventStamp,
+}
 
 /// Errors for identifier operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,6 +74,8 @@ pub enum IdentifierError {
 	InvalidPalletNameFormat,
 	/// The provided network id does not match the expected value.
 	InvalidNetworkId,
+	// Max exvents history exceeded
+	MaxEventsHistoryExceeded,
 }
 
 #[frame_support::pallet]
@@ -65,7 +85,10 @@ pub mod pallet {
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {}
+	pub trait Config: frame_system::Config {
+		/// Provider for the block number.
+		type BlockNumberProvider: BlockNumberProvider;
+	}
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -81,6 +104,21 @@ pub mod pallet {
 
 	#[pallet::storage]
 	pub type GenesisNetworkId<T: Config> = StorageValue<_, NetworkId, ValueQuery>;
+
+	#[pallet::storage]
+	pub type ActivityChain<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		Ss58Identifier,
+		Twox64Concat,
+		u32,
+		ActivityRecord,
+		OptionQuery,
+	>;
+
+	#[pallet::storage]
+	pub type ActivityCounter<T: Config> =
+		StorageMap<_, Blake2_128Concat, Ss58Identifier, u32, ValueQuery>;
 }
 
 impl<T: Config> Pallet<T> {
@@ -120,6 +158,19 @@ impl<T: Config> Pallet<T> {
 	pub fn get_network_id() -> NetworkId {
 		GenesisNetworkId::<T>::get()
 	}
+
+	/// Record an activity event for the given identifier by appending a new record.
+	pub fn record_activity(
+		identifier: &Ss58Identifier,
+		entry: EntryTypeOf,
+		stamp: EventStamp,
+	) -> Result<(), IdentifierError> {
+		let record = ActivityRecord { entry, event_stamp: stamp };
+		let index = ActivityCounter::<T>::get(identifier);
+		ActivityChain::<T>::insert(identifier, index, record);
+		ActivityCounter::<T>::insert(identifier, index + 1);
+		Ok(())
+	}
 }
 
 #[derive(
@@ -133,6 +184,12 @@ pub trait Identifier {
 		identifier: &Ss58Identifier,
 	) -> Result<DecodedIdentifier, IdentifierError>;
 	fn resolve_pallet(index: u16) -> Result<String, IdentifierError>;
+	/// Record an activity event for the given identifier.
+	fn record_activity(
+		identifier: &Ss58Identifier,
+		entry: EntryTypeOf,
+		stamp: EventStamp,
+	) -> Result<(), IdentifierError>;
 }
 
 impl Ss58Identifier {
@@ -274,6 +331,14 @@ impl<T: Config> Identifier for Pallet<T> {
 	fn resolve_pallet(index: u16) -> Result<String, IdentifierError> {
 		Self::resolve_pallet_name(index)
 	}
+
+	fn record_activity(
+		identifier: &Ss58Identifier,
+		entry: EntryTypeOf,
+		stamp: EventStamp,
+	) -> Result<(), IdentifierError> {
+		Self::record_activity(identifier, entry, stamp)
+	}
 }
 
 impl TryFrom<Vec<u8>> for Ss58Identifier {
@@ -283,5 +348,15 @@ impl TryFrom<Vec<u8>> for Ss58Identifier {
 		let bounded =
 			BoundedVec::try_from(value).map_err(|_| IdentifierError::InvalidIdentifierLength)?;
 		Ok(Ss58Identifier(bounded))
+	}
+}
+
+impl EventStamp {
+	/// Returns the current event stamp from the caller’s runtime context.
+	pub fn current<T: frame_system::Config>() -> Self {
+		Self {
+			height: frame_system::Pallet::<T>::current_block_number().unique_saturated_into(),
+			index: frame_system::Pallet::<T>::extrinsic_index().unwrap_or_default(),
+		}
 	}
 }

@@ -26,7 +26,7 @@ use alloc::{str, vec::Vec};
 use bs58;
 use codec::{Decode, Encode, MaxEncodedLen};
 use cord_primitives::{Id as NetworkId, NetworkInfoProvider};
-use cord_uri::{Identifier, Ss58Identifier};
+use cord_uri::{EntryTypeOf, EventStamp, Identifier, Ss58Identifier};
 use fluent_uri::Uri;
 use frame_support::{
 	pallet_prelude::*,
@@ -44,7 +44,7 @@ pub type IdentifierOf = Ss58Identifier;
 pub(crate) type CordAccountOf<T> = <T as frame_system::Config>::AccountId;
 pub type HashOf<T> = <T as frame_system::Config>::Hash;
 pub(crate) type NetworkName = BoundedVec<u8, ConstU32<64>>;
-pub(crate) type DataNodeId = BoundedVec<u8, ConstU32<50>>;
+pub(crate) type DataNodeId = BoundedVec<u8, ConstU32<60>>;
 pub(crate) type NetworkEndpoints = BoundedVec<BoundedVec<u8, ConstU32<256>>, ConstU32<50>>;
 pub(crate) type NetworkWebsite = Option<BoundedVec<u8, ConstU32<256>>>;
 pub(crate) type NetworkToken = BoundedVec<u8, ConstU32<142>>;
@@ -82,10 +82,14 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// The identifier activity update failed
+		ActivityUpdateFailed,
 		/// The network information was not found.
 		NetworkInfoNotFound,
 		/// The provided input is invalid or malformed.
 		InvalidInput,
+		/// The provided entry input is invalid or malformed.
+		InvalidEntryTypeInput,
 		/// The provided URI is invalid or cannot be parsed.
 		InvalidUri,
 		/// The identifier length is invalid or exceeds the maximum allowed.
@@ -425,7 +429,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::NetworkConfigOrigin::ensure_origin(origin)?;
 
-			let bounded_node_id = BoundedVec::<u8, ConstU32<50>>::try_from(node_id)
+			let bounded_node_id = BoundedVec::<u8, ConstU32<60>>::try_from(node_id)
 				.map_err(|_| Error::<T>::InvalidInput)?;
 
 			let pallet_name = <Self as PalletInfoAccess>::name();
@@ -441,6 +445,15 @@ pub mod pallet {
 				!StorageNodeConfigInfo::<T>::contains_key(&identifier),
 				Error::<T>::StorageConfigAlreadyAdded
 			);
+
+			let entry: EntryTypeOf = b"StorageNodeAdded"
+				.to_vec()
+				.try_into()
+				.map_err(|_| Error::<T>::InvalidEntryTypeInput)?;
+			let stamp = EventStamp::current::<T>();
+
+			<cord_uri::Pallet<T> as Identifier>::record_activity(&identifier, entry, stamp)
+				.map_err(|_| Error::<T>::ActivityUpdateFailed)?;
 
 			StorageNodeConfigInfo::<T>::insert(&identifier, (&bounded_node_id, &author, true));
 			StorageNodes::<T>::insert(&bounded_node_id, (&identifier, &author));
@@ -472,7 +485,7 @@ pub mod pallet {
 			let mut updated_node_id = existing_node_id.clone();
 
 			if let Some(ref new_node_id) = node_id {
-				let bounded_node_id = BoundedVec::<u8, ConstU32<50>>::try_from(new_node_id.clone())
+				let bounded_node_id = BoundedVec::<u8, ConstU32<60>>::try_from(new_node_id.clone())
 					.map_err(|_| Error::<T>::InvalidInput)?;
 				updated_node_id = bounded_node_id;
 
@@ -483,6 +496,15 @@ pub mod pallet {
 			}
 
 			let updated_author = author.unwrap_or(existing_author);
+
+			let entry: EntryTypeOf = b"StorageNodeUpdated"
+				.to_vec()
+				.try_into()
+				.map_err(|_| Error::<T>::InvalidEntryTypeInput)?;
+			let stamp = EventStamp::current::<T>();
+
+			<cord_uri::Pallet<T> as Identifier>::record_activity(&identifier, entry, stamp)
+				.map_err(|_| Error::<T>::ActivityUpdateFailed)?;
 
 			StorageNodeConfigInfo::<T>::insert(
 				&identifier,
@@ -507,7 +529,7 @@ pub mod pallet {
 		pub fn remove_storage_node(origin: OriginFor<T>, node_id: Vec<u8>) -> DispatchResult {
 			T::NetworkConfigOrigin::ensure_origin(origin)?;
 
-			let bounded_node_id = BoundedVec::<u8, ConstU32<50>>::try_from(node_id)
+			let bounded_node_id = BoundedVec::<u8, ConstU32<60>>::try_from(node_id)
 				.map_err(|_| Error::<T>::InvalidInput)?;
 
 			let (identifier, _author) = StorageNodes::<T>::get(&bounded_node_id)
@@ -516,6 +538,15 @@ pub mod pallet {
 			let (existing_node_id, existing_author, _active) =
 				StorageNodeConfigInfo::<T>::get(&identifier)
 					.ok_or(Error::<T>::StorageConfigNotFound)?;
+
+			let entry: EntryTypeOf = b"StorageNodeRemoved"
+				.to_vec()
+				.try_into()
+				.map_err(|_| Error::<T>::InvalidEntryTypeInput)?;
+			let stamp = EventStamp::current::<T>();
+
+			<cord_uri::Pallet<T> as Identifier>::record_activity(&identifier, entry, stamp)
+				.map_err(|_| Error::<T>::ActivityUpdateFailed)?;
 
 			StorageNodes::<T>::remove(&bounded_node_id);
 
@@ -689,7 +720,7 @@ pub trait StorageNodeInterface {
 
 impl<T: Config> StorageNodeInterface for Pallet<T> {
 	type AccountId = T::AccountId;
-	type NodeId = BoundedVec<u8, ConstU32<50>>;
+	type NodeId = BoundedVec<u8, ConstU32<60>>;
 	type Identifier = IdentifierOf;
 
 	/// Get the details of a storage node by its `node_id`.

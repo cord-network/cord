@@ -1470,7 +1470,9 @@ impl pallet_config::Config for Runtime {
 	type DefaultNetworkId = ConstU32<1000>;
 }
 
-impl cord_uri::Config for Runtime {}
+impl cord_uri::Config for Runtime {
+	type BlockNumberProvider = System;
+}
 
 pub type MetaTxExtension = (
 	pallet_verify_signature::VerifySignature<Runtime>,
