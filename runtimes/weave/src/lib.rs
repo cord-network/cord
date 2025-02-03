@@ -66,6 +66,7 @@ use pallet_nfts::PalletFeatures;
 use pallet_revive::{evm::runtime::EthExtra, AddressMapper};
 use pallet_session::historical as pallet_session_historical;
 use pallet_transaction_payment::{FeeDetails, FungibleAdapter, RuntimeDispatchInfo};
+use pallet_treasury::TreasuryAccountId;
 use pallet_tx_pause::RuntimeCallNameOf;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
@@ -132,7 +133,6 @@ pub mod assets_api;
 
 /// Runtime API definition for identifier.
 pub mod identifier_api;
-// pub use identifier_api::{DecodedIdentifierApi, IdentifierApi};
 
 /// Network Resistrar
 mod networks_registrar;
@@ -793,7 +793,8 @@ impl pallet_nomination_pools::Config for Runtime {
 	type RewardCounter = FixedU128;
 	type BalanceToU256 = BalanceToU256;
 	type U256ToBalance = U256ToBalance;
-	type StakeAdapter = pallet_nomination_pools::adapter::TransferStake<Self, Staking>;
+	type StakeAdapter =
+		pallet_nomination_pools::adapter::DelegateStake<Self, Staking, DelegatedStaking>;
 	type PostUnbondingPoolsWindow = ConstU32<4>;
 	type MaxMetadataLen = ConstU32<256>;
 	// we use the same number of allowed unlocking chunks as with staking.
@@ -801,6 +802,22 @@ impl pallet_nomination_pools::Config for Runtime {
 	type PalletId = PoolsPalletId;
 	type MaxPointsToBalance = MaxPointsToBalance;
 	type AdminOrigin = EnsureRootOrCouncilApproval;
+}
+
+parameter_types! {
+	pub const DelegatedStakingPalletId: PalletId = PalletId(*b"py/dlstk");
+	pub const SlashRewardFraction: Perbill = Perbill::from_percent(1);
+}
+
+impl pallet_delegated_staking::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type PalletId = DelegatedStakingPalletId;
+	type Currency = Balances;
+	// slashes are sent to the treasury.
+	type OnSlash = ResolveTo<TreasuryAccountId<Self>, Balances>;
+	type SlashRewardFraction = SlashRewardFraction;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	type CoreStaking = Staking;
 }
 
 parameter_types! {
@@ -1718,8 +1735,11 @@ mod runtime {
 	#[runtime::pallet_index(106)]
 	pub type VerifySignature = pallet_verify_signature::Pallet<Runtime>;
 
-	// Experimental EVM Pallet
 	#[runtime::pallet_index(107)]
+	pub type DelegatedStaking = pallet_delegated_staking::Pallet<Runtime>;
+
+	// Experimental EVM Pallet
+	#[runtime::pallet_index(108)]
 	pub type Revive = pallet_revive::Pallet<Runtime>;
 
 	#[runtime::pallet_index(255)]

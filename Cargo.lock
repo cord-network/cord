@@ -2543,6 +2543,7 @@ dependencies = [
  "pallet-contracts",
  "pallet-contracts-proc-macro",
  "pallet-contracts-uapi",
+ "pallet-delegated-staking",
  "pallet-election-provider-multi-phase",
  "pallet-election-provider-support-benchmarking",
  "pallet-fast-unstake",

@@ -18,8 +18,6 @@
 
 //! Pallet to handle network registration.
 
-#![cfg_attr(not(feature = "std"), no_std)]
-
 extern crate alloc;
 pub mod primitives;
 pub mod traits;
