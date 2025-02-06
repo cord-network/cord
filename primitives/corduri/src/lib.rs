@@ -29,6 +29,15 @@ use scale_info::TypeInfo;
 use sp_core::hexdisplay::HexDisplay;
 use sp_runtime::traits::{BlockNumberProvider, UniqueSaturatedInto};
 
+#[cfg(test)]
+pub mod mock;
+
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
+
+#[cfg(test)]
+mod tests;
+
 const PREFIX: &[u8] = b"CURIV02";
 const INDEX: u16 = 64;
 
@@ -359,4 +368,10 @@ impl EventStamp {
 			index: frame_system::Pallet::<T>::extrinsic_index().unwrap_or_default(),
 		}
 	}
+}
+
+/// A trait that can be used to ensure that a registry identifier exists and is active..
+pub trait RegistryIdentifierCheck {
+	/// Checks that the registry identified by `registry_id` exists and is active.
+	fn ensure_active_registry(registry_id: &Ss58Identifier) -> DispatchResult;
 }
