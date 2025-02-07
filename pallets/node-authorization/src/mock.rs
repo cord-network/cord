@@ -23,6 +23,8 @@
 use super::*;
 use crate as pallet_node_authorization;
 use crate::{Config, NodeId};
+use frame_support::dispatch::DispatchResult;
+use frame_support::ensure;
 
 use frame_support::{
 	construct_runtime, derive_impl, ord_parameter_types,
@@ -130,4 +132,9 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	.assimilate_storage(&mut t)
 	.unwrap();
 	t.into()
+}
+
+pub fn test_peer_id_length(testing : PeerId) -> DispatchResult {
+	ensure!(testing.0.len() <= 128 as usize, Error::<Test>::PeerIdTooLong);
+	Ok(())
 }
