@@ -459,3 +459,20 @@ fn test_generate_peer_id_invalid_utf8() {
 	let invalid_node_id: NodeId = vec![0xFF, 0xFE, 0xFD];
 	assert_err!(NodeAuthorization::generate_peer_id(&invalid_node_id), Error::<Test>::InvalidUtf8);
 }
+
+#[test]
+fn peer_id_too_long_test() -> Result<(),Error<Test>>{
+    new_test_ext().execute_with(|| {
+        const max_peer_id_length: usize = 128;
+        let testing = "nodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeid";
+
+        let node_identity = test_node(&testing);
+		let testing = NodeAuthorization::generate_peer_id(&node_identity).unwrap();
+
+       	// assert!(testing.0.len() > max_peer_id_length,Error::<Test>::PeerIdTooLong);
+		if testing.0.len() > max_peer_id_length {
+			return Err(Error::<Test>::PeerIdTooLong);
+		}
+		Ok(())
+    })
+}
