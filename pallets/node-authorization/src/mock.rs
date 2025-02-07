@@ -134,7 +134,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	t.into()
 }
 
-pub fn test_peer_id_length(testing : PeerId) -> DispatchResult {
+pub fn test_peer_id_length(testing: PeerId) -> DispatchResult {
 	ensure!(testing.0.len() <= 128 as usize, Error::<Test>::PeerIdTooLong);
 	Ok(())
 }
