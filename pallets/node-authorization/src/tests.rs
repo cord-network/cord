@@ -461,8 +461,8 @@ fn test_generate_peer_id_invalid_utf8() {
 }
 
 #[test]
-fn peer_id_too_long_test() -> Result<(),Error<Test>>{
-    new_test_ext().execute_with(|| {
+fn peer_id_too_long_test() -> Result<(), Error<Test>> {
+	new_test_ext().execute_with(|| {
         const max_peer_id_length: usize = 128;
         let testing = "nodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeidnodeid";
 
