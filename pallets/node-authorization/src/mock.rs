@@ -23,7 +23,7 @@
 use super::*;
 use crate as pallet_node_authorization;
 use crate::{Config, NodeId};
-use frame_support::{dispatch::DispatchResult, ensure};
+use frame_support::ensure;
 
 use frame_support::{
 	construct_runtime, derive_impl, ord_parameter_types,
