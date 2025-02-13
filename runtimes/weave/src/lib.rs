@@ -1468,6 +1468,7 @@ impl pallet_config::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type NetworkConfigOrigin = EnsureRootOrCouncilApproval;
 	type DefaultNetworkId = ConstU32<1000>;
+	type MaxStorageNodeAuthors = ConstU32<100>;
 }
 
 impl cord_uri::Config for Runtime {
