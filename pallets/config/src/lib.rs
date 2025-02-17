@@ -41,15 +41,13 @@ pub use pallet::*;
 
 /// Identifier
 pub type IdentifierOf = Ss58Identifier;
-pub(crate) type CordAccountOf<T> = <T as frame_system::Config>::AccountId;
+pub type CordAccountOf<T> = <T as frame_system::Config>::AccountId;
 pub type HashOf<T> = <T as frame_system::Config>::Hash;
 pub(crate) type NetworkName = BoundedVec<u8, ConstU32<64>>;
-pub(crate) type DataNodeId = BoundedVec<u8, ConstU32<60>>;
+pub type DataNodeId = BoundedVec<u8, ConstU32<60>>;
 pub(crate) type NetworkEndpoints = BoundedVec<BoundedVec<u8, ConstU32<256>>, ConstU32<50>>;
 pub(crate) type NetworkWebsite = Option<BoundedVec<u8, ConstU32<256>>>;
 pub(crate) type NetworkToken = BoundedVec<u8, ConstU32<142>>;
-pub(crate) type MaxStorageNodeAuthorsOf<T> = <T as crate::Config>::MaxStorageNodeAuthors;
-pub(crate) type StorageNodeAuthors<T> = BoundedVec<CordAccountOf<T>, MaxStorageNodeAuthorsOf<T>>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -70,9 +68,6 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type DefaultNetworkId: Get<u32>;
-
-		#[pallet::constant]
-		type MaxStorageNodeAuthors: Get<u32>;
 	}
 
 	#[derive(
@@ -122,8 +117,6 @@ pub mod pallet {
 		InvalidNetworkId,
 		/// The origin of the operation is not authorized or invalid.
 		Badorigin,
-		/// The storage node authors limit has been exceeded.
-		StorageNodeAuthorsLimitExceeded,
 	}
 
 	#[pallet::storage]
@@ -147,7 +140,18 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		IdentifierOf,
-		(DataNodeId, StorageNodeAuthors<T>, bool),
+		(DataNodeId, bool),
+		OptionQuery,
+	>;
+
+	#[pallet::storage]
+	pub type StorageNodeAuthors<T> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		IdentifierOf,
+		Blake2_128Concat,
+		CordAccountOf<T>,
+		(),
 		OptionQuery,
 	>;
 
@@ -156,7 +160,7 @@ pub mod pallet {
 		_, 
 		Blake2_128Concat, 
 		DataNodeId, 
-		(IdentifierOf, StorageNodeAuthors<T>), 
+		IdentifierOf, 
 		OptionQuery
 	>;
 
@@ -468,19 +472,11 @@ pub mod pallet {
 			<cord_uri::Pallet<T> as Identifier>::record_activity(&identifier, entry, stamp)
 				.map_err(|_| Error::<T>::ActivityUpdateFailed)?;
 
-			let mut authors_list: StorageNodeAuthors<T> = BoundedVec::default();
-			authors_list
-				.try_push(author.clone())
-				.map_err(|_| Error::<T>::StorageNodeAuthorsLimitExceeded)?;
+			StorageNodeConfigInfo::<T>::insert(&identifier, (&bounded_node_id, true));
 
-			StorageNodeConfigInfo::<T>::insert(
-				&identifier, 
-				(&bounded_node_id, authors_list.clone(), true)
-			);
-			StorageNodes::<T>::insert(
-				&bounded_node_id, 
-				(&identifier, authors_list)
-			);
+			StorageNodeAuthors::<T>::insert(&identifier, &author, ());
+
+			StorageNodes::<T>::insert(&bounded_node_id, &identifier);
 
 			Self::deposit_event(Event::StorageNodeAdded {
 				identifier,
@@ -502,7 +498,7 @@ pub mod pallet {
 
 			ensure!(node_id.is_some() || author.is_some(), Error::<T>::InvalidInput);
 
-			let (existing_node_id, mut existing_authors, _active) =
+			let (existing_node_id, _active) =
 				StorageNodeConfigInfo::<T>::get(&identifier)
 					.ok_or(Error::<T>::StorageConfigNotFound)?;
 
@@ -519,11 +515,14 @@ pub mod pallet {
 				);
 			}
 
+			let existing_authors: Vec<CordAccountOf<T>> = 
+				StorageNodeAuthors::<T>::iter_prefix(&identifier)
+					.map(|(author, _)| author)
+					.collect();
+
 			if let Some(new_author) = author {
 				if !existing_authors.contains(&new_author) {
-					existing_authors
-						.try_push(new_author)
-						.map_err(|_| Error::<T>::StorageNodeAuthorsLimitExceeded)?;
+					StorageNodeAuthors::<T>::insert(&identifier, &new_author, ());
 				}
 			}
 
@@ -538,9 +537,10 @@ pub mod pallet {
 
 			StorageNodeConfigInfo::<T>::insert(
 				&identifier,
-				(&updated_node_id, &existing_authors, true),
+				(&updated_node_id, true),
 			);
-			StorageNodes::<T>::insert(&updated_node_id, (&identifier, &existing_authors));
+
+			StorageNodes::<T>::insert(&updated_node_id, &identifier);
 
 			if node_id.is_some() && existing_node_id != updated_node_id {
 				StorageNodes::<T>::remove(&existing_node_id);
@@ -562,10 +562,10 @@ pub mod pallet {
 			let bounded_node_id = BoundedVec::<u8, ConstU32<60>>::try_from(node_id)
 				.map_err(|_| Error::<T>::InvalidInput)?;
 
-			let (identifier, _author) = StorageNodes::<T>::get(&bounded_node_id)
+			let identifier = StorageNodes::<T>::get(&bounded_node_id)
 				.ok_or(Error::<T>::StorageConfigNotFound)?;
 
-			let (_existing_node_id, _existing_authors, _active) =
+			let (_existing_node_id, _active) = 
 				StorageNodeConfigInfo::<T>::get(&identifier)
 					.ok_or(Error::<T>::StorageConfigNotFound)?;
 
@@ -581,7 +581,7 @@ pub mod pallet {
 			StorageNodes::<T>::remove(&bounded_node_id);
 
 			StorageNodeConfigInfo::<T>::mutate(&identifier, |entry| {
-				if let Some((_existing_node_id, _existing_authors, active)) = entry {
+				if let Some((_existing_node_id, active)) = entry {
 					*active = false; 
 				}
 			});
@@ -714,6 +714,7 @@ impl<T: Config> NetworkInfoProvider for Pallet<T> {
 		NetworkIdentifier::<T>::get()
 	}
 }
+
 impl<T: Config> Pallet<T> {
 	/// check if the network is permissioned
 	pub fn is_permissioned() -> bool {
@@ -735,12 +736,12 @@ pub trait StorageNodeInterface<T: Config> {
 	/// Get the details of a storage node by its `node_id`.
 	fn get_storage_node_details(
 		node_id: Self::NodeId,
-	) -> Option<(Self::Identifier, StorageNodeAuthors<T>, bool)>;
+	) -> Option<(Self::Identifier, Vec<CordAccountOf<T>>, bool)>;
 
 	/// Get the details of a storage node by its `identifier`.
 	fn get_storage_node_details_by_identifier(
 		identifier: Self::Identifier,
-	) -> Option<(Self::NodeId, StorageNodeAuthors<T>, bool)>;
+	) -> Option<(Self::NodeId, Vec<CordAccountOf<T>>, bool)>;
 
 	/// Check if a storage node is active by its `node_id`.
 	fn is_storage_node_active(node_id: Self::NodeId) -> bool;
@@ -762,26 +763,36 @@ impl<T: Config> StorageNodeInterface<T> for Pallet<T> {
 	/// Get the details of a storage node by its `node_id`.
 	fn get_storage_node_details(
 		node_id: Self::NodeId,
-	) -> Option<(Self::Identifier, StorageNodeAuthors<T>, bool)> {
-		if let Some((identifier, authors)) = StorageNodes::<T>::get(&node_id) {
-			if let Some((_, _, active)) = StorageNodeConfigInfo::<T>::get(&identifier) {
+	) -> Option<(Self::Identifier, Vec<CordAccountOf<T>>, bool)> {
+		if let Some(identifier) = StorageNodes::<T>::get(&node_id) {
+			if let Some((_existing_node_id, active)) = StorageNodeConfigInfo::<T>::get(&identifier) {
+				let authors: Vec<CordAccountOf<T>> = StorageNodeAuthors::<T>::iter_prefix(&identifier)
+					.map(|(author, _)| author)
+					.collect();
 				return Some((identifier, authors, active));
 			}
 		}
+
 		None
 	}
 
 	/// Get the details of a storage node by its `identifier`.
 	fn get_storage_node_details_by_identifier(
 		identifier: Self::Identifier,
-	) -> Option<(Self::NodeId, StorageNodeAuthors<T>, bool)> {
-		StorageNodeConfigInfo::<T>::get(&identifier)
+	) -> Option<(Self::NodeId, Vec<CordAccountOf<T>>, bool)> {
+		let (node_id, active_status) = StorageNodeConfigInfo::<T>::get(&identifier)?;
+
+		let authors: Vec<CordAccountOf<T>> = StorageNodeAuthors::<T>::iter_prefix(&identifier)
+			.map(|(author, _)| author)
+			.collect();
+
+		Some((node_id, authors, active_status))
 	}
 
 	/// Check if a storage node is active by its `node_id`.
 	fn is_storage_node_active(node_id: Self::NodeId) -> bool {
-		if let Some((identifier, _)) = StorageNodes::<T>::get(&node_id) {
-			if let Some((_, _, active)) = StorageNodeConfigInfo::<T>::get(&identifier) {
+		if let Some(identifier) = StorageNodes::<T>::get(&node_id) {
+			if let Some((_, active)) = StorageNodeConfigInfo::<T>::get(&identifier) {
 				return active;
 			}
 		}
@@ -790,17 +801,16 @@ impl<T: Config> StorageNodeInterface<T> for Pallet<T> {
 
 	/// Check if a storage node is active by its `identifier`.
 	fn is_storage_node_active_by_identifier(identifier: Self::Identifier) -> bool {
-		if let Some((_, _, active)) = StorageNodeConfigInfo::<T>::get(&identifier) {
+		if let Some((_, active)) = StorageNodeConfigInfo::<T>::get(&identifier) {
 			return active;
 		}
 		false
 	}
 
 	/// Check if the author is part of a registered storage node
-	fn is_author_part_of_a_storage_node(identifier: Self::Identifier, author: CordAccountOf<T>) -> bool {
-		if let Some((_, existing_authors, _)) = StorageNodeConfigInfo::<T>::get(&identifier) {
-			return existing_authors.contains(&author);
-		}
-		false
+	fn is_author_part_of_a_storage_node(
+		identifier: Self::Identifier, author: CordAccountOf<T>
+	) -> bool {
+		StorageNodeAuthors::<T>::contains_key(&identifier, &author)
 	}
 }
