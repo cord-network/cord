@@ -68,6 +68,7 @@ use pallet_session::historical as pallet_session_historical;
 use pallet_transaction_payment::{FeeDetails, FungibleAdapter, RuntimeDispatchInfo};
 use pallet_treasury::TreasuryAccountId;
 use pallet_tx_pause::RuntimeCallNameOf;
+use pallet_config::{DataNodeId, IdentifierOf};
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_beefy::{
@@ -2216,6 +2217,16 @@ impl_runtime_apis! {
 
 		fn resolve_pallet(index: u16) -> Option<String> {
 			Identifier::resolve_pallet_name(index).ok()
+		}
+	}
+
+	impl pallet_config_runtime_api::ConfigApi<Block, IdentifierOf> for Runtime {
+		fn get_storage_node_details_by_identifier(
+			identifier: &IdentifierOf,
+		) -> Option<(DataNodeId, Vec<AccountId>, bool)> {
+			<pallet_config::Pallet<Runtime> 
+				as pallet_config::StorageNodeInterface<Runtime>>
+					::get_storage_node_details_by_identifier(identifier.clone())
 		}
 	}
 
