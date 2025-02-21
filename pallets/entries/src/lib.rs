@@ -48,6 +48,8 @@ pub mod mock;
 #[cfg(test)]
 mod tests;
 
+mod weights;
+
 use frame_support::{
 	ensure,
 	pallet_prelude::DispatchResult,
@@ -64,7 +66,8 @@ use identifier::{
 pub use pallet::*;
 use sp_std::{prelude::*, str};
 
-pub use frame_system::WeightInfo;
+pub use weights::WeightInfo;
+
 pub use types::RegistryEntryDetails;
 
 pub use cord_primitives::StatusOf;
@@ -223,7 +226,7 @@ pub mod pallet {
 		/// create(origin, registry_entry_id, authorization, digest, Some(blob))?;
 		/// ```
 		#[pallet::call_index(0)]
-		#[pallet::weight({0})]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::create())]
 		pub fn create(
 			origin: OriginFor<T>,
 			_registry_entry_id: RegistryEntryIdOf,
