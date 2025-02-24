@@ -98,6 +98,8 @@ pub mod benchmarking;
 #[cfg(test)]
 mod tests;
 
+mod weights;
+
 use frame_support::{ensure, storage::types::StorageMap, BoundedVec};
 pub mod types;
 pub use crate::{pallet::*, types::*};
@@ -107,6 +109,8 @@ use identifier::{
 	EventEntryOf,
 };
 use sp_runtime::traits::{Hash, UniqueSaturatedInto};
+
+pub use weights::WeightInfo;
 
 /// Registry Authorization Identifier
 pub type RegistryAuthorizationIdOf = Ss58Identifier;
@@ -141,7 +145,6 @@ pub mod pallet {
 	pub use cord_primitives::{IsPermissioned, StatusOf};
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	pub use frame_system::WeightInfo;
 	pub use identifier::{
 		CordIdentifierType, IdentifierCreator, IdentifierTimeline, IdentifierType, Ss58Identifier,
 	};
@@ -313,7 +316,7 @@ pub mod pallet {
 		///   for the registry.
 		/// - Propagates errors from `registry_delegate_addition` if the addition fails.
 		#[pallet::call_index(0)]
-		#[pallet::weight({0})]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::add_delegate())]
 		pub fn add_delegate(
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
@@ -374,7 +377,7 @@ pub mod pallet {
 		///   registry.
 		/// - Propagates errors from `registry_delegate_addition` if delegate addition fails.
 		#[pallet::call_index(1)]
-		#[pallet::weight({0})]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::add_admin_delegate())]
 		pub fn add_admin_delegate(
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
@@ -436,7 +439,7 @@ pub mod pallet {
 		///   for the registry.
 		/// - Propagates errors from `registry_delegate_addition` if delegate addition fails.
 		#[pallet::call_index(2)]
-		#[pallet::weight({0})]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::add_delegator())]
 		pub fn add_delegator(
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
@@ -504,7 +507,7 @@ pub mod pallet {
 		/// - `Deauthorization`: Emitted when a delegate is successfully removed from the registry.
 		///   The event includes the registry ID and the authorization ID of the removed delegate.
 		#[pallet::call_index(3)]
-		#[pallet::weight({0})]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::remove_delegate())]
 		pub fn remove_delegate(
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
@@ -599,7 +602,7 @@ pub mod pallet {
 		/// - `Create`: Emitted when a new registry is successfully created. It includes the
 		///   registry identifier, the creator's identifier, and the authorization ID.
 		#[pallet::call_index(4)]
-		#[pallet::weight({0})]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::create())]
 		pub fn create(
 			origin: OriginFor<T>,
 			digest: RegistryHashOf<T>,
@@ -728,7 +731,7 @@ pub mod pallet {
 		/// - `Revoke`: Emitted when a registry is successfully revoked. It includes the registry ID
 		///   and the authority who performed the revocation.
 		#[pallet::call_index(6)]
-		#[pallet::weight({0})]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::revoke())]
 		pub fn revoke(
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
@@ -802,7 +805,7 @@ pub mod pallet {
 		/// - `Reinstate`: Emitted when a registry is successfully reinstated. It includes the
 		///   registry ID and the authority who performed the reinstatement.
 		#[pallet::call_index(7)]
-		#[pallet::weight({0})]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::reinstate())]
 		pub fn reinstate(
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
@@ -883,7 +886,7 @@ pub mod pallet {
 		/// TODO:
 		/// Move optional parameter as last argument.
 		#[pallet::call_index(8)]
-		#[pallet::weight({0})]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::update())]
 		pub fn update(
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
@@ -959,7 +962,7 @@ pub mod pallet {
 		/// - `Archive`: Emitted when a registry is successfully archived. It includes the registry
 		///   ID and the authority who performed the archival.
 		#[pallet::call_index(9)]
-		#[pallet::weight({0})]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::archive())]
 		pub fn archive(
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
@@ -1033,7 +1036,7 @@ pub mod pallet {
 		/// - `Restore`: Emitted when a registry is successfully restored. It includes the registry
 		///   ID and the authority who performed the restoration.
 		#[pallet::call_index(10)]
-		#[pallet::weight({0})]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::restore())]
 		pub fn restore(
 			origin: OriginFor<T>,
 			registry_id: RegistryIdOf,
