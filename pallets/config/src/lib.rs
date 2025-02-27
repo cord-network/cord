@@ -36,6 +36,7 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use frame_system::pallet_prelude::*;
 use sp_runtime::traits::{Hash, Zero};
+use frame_support::storage::{with_transaction, TransactionOutcome};
 
 pub use pallet::*;
 
@@ -44,7 +45,7 @@ pub type IdentifierOf = Ss58Identifier;
 pub(crate) type CordAccountOf<T> = <T as frame_system::Config>::AccountId;
 pub type HashOf<T> = <T as frame_system::Config>::Hash;
 pub(crate) type NetworkName = BoundedVec<u8, ConstU32<64>>;
-pub(crate) type DataNodeId = BoundedVec<u8, ConstU32<60>>;
+pub type DataNodeId = BoundedVec<u8, ConstU32<60>>;
 pub(crate) type NetworkEndpoints = BoundedVec<BoundedVec<u8, ConstU32<256>>, ConstU32<50>>;
 pub(crate) type NetworkWebsite = Option<BoundedVec<u8, ConstU32<256>>>;
 pub(crate) type NetworkToken = BoundedVec<u8, ConstU32<142>>;
@@ -52,7 +53,7 @@ pub(crate) type NetworkToken = BoundedVec<u8, ConstU32<142>>;
 #[frame_support::pallet]
 pub mod pallet {
 
-	use super::*;
+use super::*;
 
 	/// The current storage version.
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -78,6 +79,12 @@ pub mod pallet {
 		pub website: NetworkWebSite,
 		pub token: NetworkToken,
 		pub owner: Account,
+	}
+
+	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+	pub enum NodeType {
+		Read,
+		Write,
 	}
 
 	#[pallet::error]
@@ -116,6 +123,12 @@ pub mod pallet {
 		InvalidNetworkId,
 		/// The origin of the operation is not authorized or invalid.
 		Badorigin,
+		/// Read node already exists.
+		ReadNodeAlreadyExists,
+		/// Transactional storage process failed.
+		StorageTransactionFailed,
+		/// Invalid node type.
+		InvalidNodeType,
 	}
 
 	#[pallet::storage]
@@ -139,13 +152,26 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		IdentifierOf,
-		(DataNodeId, CordAccountOf<T>, bool),
+		(DataNodeId, CordAccountOf<T>, bool, NodeType),
 		OptionQuery,
 	>;
 
 	#[pallet::storage]
 	pub type StorageNodes<T> =
-		StorageMap<_, Blake2_128Concat, DataNodeId, (IdentifierOf, CordAccountOf<T>), OptionQuery>;
+		StorageMap<_, Blake2_128Concat, DataNodeId, (IdentifierOf, CordAccountOf<T>, NodeType), OptionQuery>;
+
+	#[pallet::storage]
+	pub type WriteReadStorageNodeMap<T> = StorageDoubleMap<
+		_, 
+		Blake2_128Concat, 
+		// Write Node ID
+		DataNodeId,  
+		Blake2_128Concat, 
+		// Read Node ID
+		DataNodeId,  
+		(), 
+		OptionQuery
+	>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -179,6 +205,14 @@ pub mod pallet {
 			identifier: IdentifierOf,
 			node: DataNodeId,
 		},
+		ReadNodeAdded {
+			identifier: IdentifierOf,
+			node: DataNodeId
+		},
+		ReadNodeRemoved {
+			identifier: IdentifierOf,
+			node: DataNodeId
+		}
 	}
 
 	#[pallet::genesis_config]
@@ -455,8 +489,11 @@ pub mod pallet {
 			<cord_uri::Pallet<T> as Identifier>::record_activity(&identifier, entry, stamp)
 				.map_err(|_| Error::<T>::ActivityUpdateFailed)?;
 
-			StorageNodeConfigInfo::<T>::insert(&identifier, (&bounded_node_id, &author, true));
-			StorageNodes::<T>::insert(&bounded_node_id, (&identifier, &author));
+			StorageNodeConfigInfo::<T>::insert(
+				&identifier, 
+				(&bounded_node_id, &author, true, NodeType::Write)
+			);
+			StorageNodes::<T>::insert(&bounded_node_id, (&identifier, &author, NodeType::Write));
 
 			Self::deposit_event(Event::StorageNodeAdded {
 				identifier,
@@ -478,7 +515,9 @@ pub mod pallet {
 
 			ensure!(node_id.is_some() || author.is_some(), Error::<T>::InvalidInput);
 
-			let (existing_node_id, existing_author, _active) =
+			let (existing_node_id,
+				existing_author,
+				_active, _) =
 				StorageNodeConfigInfo::<T>::get(&identifier)
 					.ok_or(Error::<T>::StorageConfigNotFound)?;
 
@@ -508,9 +547,9 @@ pub mod pallet {
 
 			StorageNodeConfigInfo::<T>::insert(
 				&identifier,
-				(&updated_node_id, &updated_author, true),
+				(&updated_node_id, &updated_author, true, NodeType::Write),
 			);
-			StorageNodes::<T>::insert(&updated_node_id, (&identifier, &updated_author));
+			StorageNodes::<T>::insert(&updated_node_id, (&identifier, &updated_author, NodeType::Write));
 
 			if node_id.is_some() && existing_node_id != updated_node_id {
 				StorageNodes::<T>::remove(&existing_node_id);
@@ -532,10 +571,12 @@ pub mod pallet {
 			let bounded_node_id = BoundedVec::<u8, ConstU32<60>>::try_from(node_id)
 				.map_err(|_| Error::<T>::InvalidInput)?;
 
-			let (identifier, _author) = StorageNodes::<T>::get(&bounded_node_id)
+			let (identifier, _author, _) = StorageNodes::<T>::get(&bounded_node_id)
 				.ok_or(Error::<T>::StorageConfigNotFound)?;
 
-			let (existing_node_id, existing_author, _active) =
+			let (existing_node_id, 
+				existing_author,
+				_active, _) =
 				StorageNodeConfigInfo::<T>::get(&identifier)
 					.ok_or(Error::<T>::StorageConfigNotFound)?;
 
@@ -552,12 +593,142 @@ pub mod pallet {
 
 			StorageNodeConfigInfo::<T>::insert(
 				&identifier,
-				(&existing_node_id, &existing_author, false),
+				(&existing_node_id, &existing_author, false, NodeType::Write),
 			);
 
 			Self::deposit_event(Event::StorageNodeRemoved {
 				identifier,
 				node: bounded_node_id.clone(),
+			});
+
+			Ok(())
+		}
+
+		/// Adds a read node. The read node is associated with a existing write node.
+		#[pallet::call_index(9)]
+		#[pallet::weight({200_000})]
+		pub fn add_read_node(
+			origin: OriginFor<T>,
+			write_node_id: Vec<u8>,
+			read_node_id: Vec<u8>,
+			author: CordAccountOf<T>,
+		) -> DispatchResult {
+			T::NetworkConfigOrigin::ensure_origin(origin)?;
+
+			let (bounded_write_node_id, bounded_read_node_id) = (
+				BoundedVec::<u8, ConstU32<60>>::try_from(write_node_id)
+					.map_err(|_| Error::<T>::InvalidInput)?,
+				BoundedVec::<u8, ConstU32<60>>::try_from(read_node_id)
+					.map_err(|_| Error::<T>::InvalidInput)?,
+			);
+
+			let write_node_info = StorageNodes::<T>::get(&bounded_write_node_id)
+				.ok_or_else(|| Error::<T>::StorageConfigNotFound)?;
+
+			StorageNodeConfigInfo::<T>::get(&write_node_info.0)
+				.ok_or(Error::<T>::StorageConfigNotFound)?;
+	
+			let pallet_name = <Self as PalletInfoAccess>::name();
+			let digest = <T as frame_system::Config>::Hashing::hash(
+				&[&bounded_read_node_id.encode()[..], &author.encode()[..]].concat()[..],
+			);
+
+			ensure!(
+				!WriteReadStorageNodeMap::<T>::contains_key(&bounded_write_node_id, &bounded_read_node_id),
+				Error::<T>::ReadNodeAlreadyExists
+			);
+
+			let read_node_identifier =
+				<cord_uri::Pallet<T> as Identifier>::build(&(digest).encode()[..], pallet_name)
+					.map_err(|_| Error::<T>::InvalidIdentifierLength)?;
+
+			ensure!(
+				!StorageNodeConfigInfo::<T>::contains_key(&read_node_identifier),
+				Error::<T>::StorageConfigAlreadyAdded
+			);
+
+			let entry: EntryTypeOf = b"ReadNodeAdded"
+				.to_vec()
+				.try_into()
+				.map_err(|_| Error::<T>::InvalidEntryTypeInput)?;
+			let stamp = EventStamp::current::<T>();
+
+			<cord_uri::Pallet<T> as Identifier>::record_activity(&read_node_identifier, entry, stamp)
+				.map_err(|_| Error::<T>::ActivityUpdateFailed)?;
+
+			with_transaction::<_, DispatchError, _>(|| {
+				StorageNodeConfigInfo::<T>::insert(
+					&read_node_identifier,
+					(&bounded_read_node_id, &author, true, NodeType::Read),
+				);
+				StorageNodes::<T>::insert(
+					&bounded_read_node_id,
+					(&read_node_identifier, &author, NodeType::Read),
+				);
+				WriteReadStorageNodeMap::<T>::insert(&bounded_write_node_id, &bounded_read_node_id, ());
+
+				TransactionOutcome::Commit(Ok(()))
+			})
+			.map_err(|_| Error::<T>::StorageTransactionFailed)?;
+
+			Self::deposit_event(Event::ReadNodeAdded {
+				identifier: read_node_identifier,
+				node: bounded_read_node_id.clone(),
+			});
+
+			Ok(())
+		}
+
+		/// Removes a read node. The read node is associated with a existing write node.
+		#[pallet::call_index(10)]
+		#[pallet::weight({200_000})]
+		pub fn remove_read_node(
+			origin: OriginFor<T>, 
+			write_node_id: Vec<u8>,
+			read_node_id: Vec<u8>,
+		) -> DispatchResult {
+			T::NetworkConfigOrigin::ensure_origin(origin)?;
+
+			let (bounded_write_node_id, bounded_read_node_id) = (
+				BoundedVec::<u8, ConstU32<60>>::try_from(write_node_id)
+					.map_err(|_| Error::<T>::InvalidInput)?,
+				BoundedVec::<u8, ConstU32<60>>::try_from(read_node_id)
+					.map_err(|_| Error::<T>::InvalidInput)?,
+			);
+
+			StorageNodes::<T>::get(&bounded_write_node_id)
+				.ok_or(Error::<T>::StorageConfigNotFound)?;
+
+			let (read_node_identifier, read_node_author, node_type) = StorageNodes::<T>::get(&bounded_read_node_id)
+				.ok_or(Error::<T>::StorageConfigNotFound)?;
+
+			ensure!(node_type == NodeType::Read, Error::<T>::InvalidNodeType);
+
+			let entry: EntryTypeOf = b"ReadNodeRemoved"
+				.to_vec()
+				.try_into()
+				.map_err(|_| Error::<T>::InvalidEntryTypeInput)?;
+			let stamp = EventStamp::current::<T>();
+
+			<cord_uri::Pallet<T> as Identifier>::record_activity(&read_node_identifier, entry, stamp)
+				.map_err(|_| Error::<T>::ActivityUpdateFailed)?;
+
+			with_transaction::<_, DispatchError, _>(|| {
+				StorageNodes::<T>::remove(&bounded_read_node_id);
+
+				StorageNodeConfigInfo::<T>::insert(
+					&read_node_identifier,
+					(&bounded_read_node_id, &read_node_author, false, NodeType::Read),
+				);
+
+				WriteReadStorageNodeMap::<T>::remove(&bounded_write_node_id, &bounded_read_node_id);
+				TransactionOutcome::Commit(Ok(()))
+			})
+			.map_err(|_| Error::<T>::StorageTransactionFailed)?;
+
+			Self::deposit_event(Event::ReadNodeRemoved {
+				identifier: read_node_identifier,
+				node: bounded_read_node_id.clone(),
 			});
 
 			Ok(())
@@ -716,6 +887,9 @@ pub trait StorageNodeInterface {
 
 	/// Check if a storage node is active by its `identifier`.
 	fn is_storage_node_active_by_identifier(identifier: Self::Identifier) -> bool;
+
+	/// Get list of read nodes associated with a write node.
+	fn get_read_nodes_for_a_write_node(write_node_id: Self::NodeId) -> Vec<Self::NodeId>;
 }
 
 impl<T: Config> StorageNodeInterface for Pallet<T> {
@@ -727,9 +901,11 @@ impl<T: Config> StorageNodeInterface for Pallet<T> {
 	fn get_storage_node_details(
 		node_id: Self::NodeId,
 	) -> Option<(Self::Identifier, Self::AccountId, bool)> {
-		if let Some((identifier, author)) = StorageNodes::<T>::get(&node_id) {
-			if let Some((_, _, active)) = StorageNodeConfigInfo::<T>::get(&identifier) {
-				return Some((identifier, author, active));
+		if let Some((identifier, author, _)) = 
+			StorageNodes::<T>::get(&node_id) {
+				if let Some((_, _, active ,_)) = 
+					StorageNodeConfigInfo::<T>::get(&identifier) {
+						return Some((identifier, author, active));
 			}
 		}
 		None
@@ -738,13 +914,17 @@ impl<T: Config> StorageNodeInterface for Pallet<T> {
 	fn get_storage_node_details_by_identifier(
 		identifier: Self::Identifier,
 	) -> Option<(Self::NodeId, Self::AccountId, bool)> {
-		StorageNodeConfigInfo::<T>::get(&identifier)
+		if let Some((identifier, author, active, _)) = 
+			StorageNodeConfigInfo::<T>::get(&identifier) {
+				return Some((identifier, author, active));
+		}
+		None
 	}
 
 	/// Check if a storage node is active by its `node_id`.
 	fn is_storage_node_active(node_id: Self::NodeId) -> bool {
-		if let Some((identifier, _)) = StorageNodes::<T>::get(&node_id) {
-			if let Some((_, _, active)) = StorageNodeConfigInfo::<T>::get(&identifier) {
+		if let Some((identifier, _, _)) = StorageNodes::<T>::get(&node_id) {
+			if let Some((_, _, active, _)) = StorageNodeConfigInfo::<T>::get(&identifier) {
 				return active;
 			}
 		}
@@ -753,9 +933,16 @@ impl<T: Config> StorageNodeInterface for Pallet<T> {
 
 	/// Check if a storage node is active by its `identifier`.
 	fn is_storage_node_active_by_identifier(identifier: Self::Identifier) -> bool {
-		if let Some((_, _, active)) = StorageNodeConfigInfo::<T>::get(&identifier) {
+		if let Some((_, _, active, _)) = StorageNodeConfigInfo::<T>::get(&identifier) {
 			return active;
 		}
 		false
+	}
+
+	/// Get list of read nodes associated with a write node.
+	fn get_read_nodes_for_a_write_node(write_node_id: Self::NodeId) -> Vec<Self::NodeId> {
+		WriteReadStorageNodeMap::<T>::iter_prefix(&write_node_id)
+			.map(|(read_node_id, _)| read_node_id)
+			.collect()
 	}
 }
